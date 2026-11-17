@@ -1,0 +1,2 @@
+7e544fabd190f37e7d9aa31de6c40b346cfe404e1fcb823a2560f23341e8184a  Magpie-Android-1.12.0-arm64.apk
+5a08d7e70ee9cc9efd1fdc6896b1403f780da24afad9dbafe5a01fd4f3d400b8  Magpie-Android-1.12.0-x86_64.apk
