@@ -9,4 +9,4 @@
 
 最低 Android 9.0，目标 API 35。Android 核心通过 NDK/CGO 使用系统 DNS；ARM64 按 16 KB ELF 页面对齐。源码交付包不包含签名私钥；自行构建会生成新证书，不能覆盖已安装的交付包。持有原证书时可用构建环境变量指定。
 
-完整克隆：`git clone --recurse-submodules https://github.com/yvichyi/magpieA-.git`。ZIP源码可运行 `bash android/fetch-core.sh` 获取固定核心。
+完整克隆：`git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/yvichyi/magpieA-.git`。ZIP源码可运行 `bash android/fetch-core.sh` 获取固定核心。

@@ -7,7 +7,7 @@
 原版核心固定为 `magpie-core` Git子模块，提交 `593517bf00bc8b0ab00c8ddef3f4d31b310a71b8`（v0.1.4342）。使用以下方式取得包括核心在内的全部源码：
 
 ```sh
-git clone --recurse-submodules https://github.com/yvichyi/magpieA-.git
+git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/yvichyi/magpieA-.git
 cd magpieA-
 ```
 
