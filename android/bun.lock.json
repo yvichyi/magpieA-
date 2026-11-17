@@ -1,0 +1,18 @@
+{
+  "version": "1.4.2",
+  "release": "https://github.com/oven-sh/bun/releases/download/bun-v1.4.2",
+  "license_source": "https://github.com/oven-sh/bun/blob/bun-v1.4.2/LICENSE.md",
+  "targets": {
+    "arm64-v8a": {
+      "target": "bun-linux-aarch64-android",
+      "zip_sha256": "a1c7e2983f1bb65146beb256a4d72449f23042412bc2cf278aa6397ba27e0274",
+      "binary_sha256": "f2970336bfccf36e4e8a408b25c627122f210e941672f184198c31f4dbd377a0"
+    },
+    "x86_64": {
+      "target": "bun-linux-x64-android-baseline",
+      "zip_sha256": "fe36d8d4795e0eadc22fb6696d44d168491c2e5b9b7cbb12b8c96b0c0c40a4f9",
+      "binary_sha256": "12222610d9a72265ecb5955e09e009bc2b32cd9624427f8a76bec34965917054"
+    }
+  },
+  "android_min_sdk": 28
+}

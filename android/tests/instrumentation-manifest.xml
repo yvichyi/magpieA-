@@ -1,0 +1,14 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="ai.magpie.android.tests">
+    <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35"/>
+    <application android:label="Magpie native acceptance" android:debuggable="true"/>
+    <instrumentation android:name="ai.magpie.android.NativeAcceptance" android:targetPackage="ai.magpie.android" android:label="Native callbacks and view rendering"/>
+<instrumentation android:name="ai.magpie.android.PluginRuntimeProbe" android:targetPackage="ai.magpie.android" android:functionalTest="true" />
+<instrumentation android:name="ai.magpie.android.NavigationRaceProbe" android:targetPackage="ai.magpie.android" />
+<instrumentation android:name="ai.magpie.android.NativeSetupAcceptance" android:targetPackage="ai.magpie.android" />
+<instrumentation android:name="ai.magpie.android.NativeDailyAcceptance" android:targetPackage="ai.magpie.android" />
+<instrumentation android:name="ai.magpie.android.NativeRefineAcceptance" android:targetPackage="ai.magpie.android" />
+<instrumentation android:name="ai.magpie.android.NativeResponsiveAcceptance" android:targetPackage="ai.magpie.android" />
+<instrumentation android:name="ai.magpie.android.NativeNavigationAcceptance" android:targetPackage="ai.magpie.android" />
+<instrumentation android:name="ai.magpie.android.NativeEmbeddedAcceptance" android:targetPackage="ai.magpie.android" />
+<instrumentation android:name="ai.magpie.android.NativeHeatmapAcceptance" android:targetPackage="ai.magpie.android" />
+</manifest>

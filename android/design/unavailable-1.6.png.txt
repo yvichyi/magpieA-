@@ -1,0 +1,58 @@
+FrameLayout 0,24 394x780 
+ LinearLayout 0,24 394x780 
+  LinearLayout 0,24 394x60 
+   LineIcon 24,40 28x28 
+   View 52,53 9x1 
+   TextView 61,41 233x26 Magpie
+   FrameLayout 294,32 44x44 
+    LineIcon 305,43 22x22 
+   FrameLayout 338,32 44x44 
+    LineIcon 349,43 22x22 
+  ScrollView 0,84 394x649 
+   LinearLayout 0,84 394x443 
+    TextView 24,98 346x40 用量
+    View 24,138 1x8 
+    TextView 24,146 346x19 本机空间 · UTC
+    View 24,165 1x18 
+    LinearLayout 24,183 346x50 
+     PeriodTabs 24,183 346x50 
+      LinearLayout 24,183 346x50 
+       TextView 24,183 86x48 今天
+       TextView 110,183 86x48 7 天
+       TextView 196,183 87x48 30 天
+       TextView 283,183 87x48 全部
+      View 24,232 346x1 
+      View 110,231 86x2 
+    View 24,233 1x12 
+    TextView 24,245 346x24 网关未连接
+    View 24,269 1x8 
+    LinearLayout 24,277 346x226 
+     View 24,277 1x28 
+     TextView 24,305 346x29 统计暂不可用
+     View 24,334 1x12 
+     TextView 24,346 346x19 返回工作台启动网关，再刷新统计。
+     View 24,365 1x18 
+     Button 24,383 346x48 重新读取
+     View 24,431 1x24 
+     Button 24,455 346x48 查看请求明细
+  LinearLayout 0,733 394x71 
+   View 0,733 394x1 
+   FrameLayout 0,734 394x70 
+    LinearLayout 0,734 394x70 
+     LinearLayout 12,740 92x56 
+      LineIcon 47,745 22x22 
+      View 57,767 1x5 
+      TextView 12,772 92x19 模型
+     LinearLayout 104,740 92x56 
+      LineIcon 139,745 22x22 
+      View 149,767 1x5 
+      TextView 104,772 92x19 路由
+     LinearLayout 196,740 93x56 
+      LineIcon 231,745 22x22 
+      View 242,767 1x5 
+      TextView 196,772 93x19 用量
+     LinearLayout 289,740 93x56 
+      LineIcon 324,745 22x22 
+      View 335,767 1x5 
+      TextView 289,772 93x19 插件
+    View 232,802 22x2 

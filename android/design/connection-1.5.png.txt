@@ -1,0 +1,45 @@
+DecorView 0,154 394x650 
+ FrameLayout 0,154 394x650 
+  FrameLayout 0,154 394x650 
+   ScrollView 0,154 394x650 
+    LinearLayout 0,154 394x584 
+     LinearLayout 24,166 346x44 
+      TextView 24,172 302x32 接入模型
+      FrameLayout 326,166 44x44 
+       LineIcon 337,177 22x22 
+     View 24,210 1x18 
+     TextView 24,228 346x19 模型标识
+     View 24,247 1x7 
+     LinearLayout 24,254 346x44 
+      TextView 24,264 302x24 android-device-verified/android-echo
+      FrameLayout 326,254 44x44 
+       LineIcon 337,265 21x21 
+       LineIcon 337,265 21x21 
+     View 24,298 1x16 
+     TextView 24,314 346x19 接口协议
+     View 24,333 1x4 
+     PeriodTabs 24,337 346x50 
+      LinearLayout 24,337 346x50 
+       TextView 24,337 115x48 OpenAI
+       TextView 139,337 115x48 Anthropic
+       TextView 254,337 116x48 Gemini
+      View 24,386 346x1 
+      View 24,385 115x2 
+     View 24,387 1x20 
+     TextView 24,407 346x19 Base URL
+     View 24,426 1x7 
+     LinearLayout 24,433 346x44 
+      TextView 24,444 302x21 http://127.0.0.1:3425/v1
+      FrameLayout 326,433 44x44 
+       LineIcon 337,444 21x21 
+       LineIcon 337,444 21x21 
+     View 24,477 1x18 
+     TextView 24,495 346x19 API Key
+     View 24,514 1x7 
+     TextView 24,521 346x24 magpie
+     View 24,545 1x8 
+     TextView 24,553 346x41 本机回环访问无需专用密钥，magpie 可作为客户端占位值。命名密钥与局域网接入在网关中配置。
+     View 24,594 1x24 
+     Button 24,618 346x48 复制接入信息
+     TextView 24,666 346x48 网关与访问密钥 →
+  ViewStub 0,154 0x0 

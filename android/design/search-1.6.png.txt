@@ -1,0 +1,79 @@
+FrameLayout 0,24 394x780 
+ LinearLayout 0,24 394x780 
+  LinearLayout 0,24 394x60 
+   LineIcon 24,40 28x28 
+   View 52,53 9x1 
+   TextView 61,41 231x26 Magpie
+   TextView 292,32 38x44 本机 ⌄
+   View 330,53 8x1 
+   FrameLayout 338,32 44x44 
+    LineIcon 349,43 22x22 
+  ScrollView 0,84 394x649 
+   LinearLayout 0,84 394x649 
+    LinearLayout 24,84 346x68 
+     LinearLayout 24,106 292x19 
+      LinearLayout 24,106 292x19 
+       View 24,112 6x6 
+       View 30,115 8x1 
+       TextView 38,106 39x19 运行中
+       View 77,115 8x1 
+       TextView 85,106 231x19 127.0.0.1:3425
+      TextView 24,106 0x0 
+     View 316,115 8x1 
+     Button 324,92 46x48 管理
+    View 24,152 346x1 
+    View 24,153 1x22 
+    LinearLayout 24,175 346x44 
+     TextView 24,177 258x40 模型
+     FrameLayout 282,175 44x44 
+      LineIcon 293,186 22x22 
+     FrameLayout 326,175 44x44 
+      LineIcon 337,186 22x22 
+    EditText 24,219 346x68 android-echo
+    TextView 24,287 346x39 2 个服务商 · 1 个路由组
+    LinearLayout 24,326 346x143 
+     LinearLayout 24,326 346x54 
+      TextView 24,344 260x24 安卓设备验证
+      TextView 284,347 46x17 2 个模型
+      View 330,355 12x1 
+      TextView 342,334 28x44 编辑
+     LinearLayout 24,380 346x76 
+      LinearLayout 24,394 292x48 
+       TextView 24,394 292x24 android-echo
+       View 24,418 1x7 
+       TextView 24,425 292x17 android-device-verified/android-echo
+      View 316,417 10x1 
+      FrameLayout 326,396 44x44 
+       LineIcon 337,407 21x21 
+       LineIcon 337,407 21x21 
+     View 24,456 346x1 
+     View 24,457 1x12 
+    View 24,469 1x24 
+    LinearLayout 24,493 346x44 
+     TextView 24,505 273x20 今日用量
+     TextView 297,493 73x44 查看用量 →
+    TextView 24,537 346x21 11 次调用  ·  117 Token  ·  费用待定价
+    TextView 24,558 346x45 10 次未定价，未计入费用
+    Button 24,603 346x48 接入 Agent
+  LinearLayout 0,733 394x71 
+   LinearLayout 0,733 394x71 
+    View 0,733 394x1 
+    FrameLayout 0,734 394x70 
+     LinearLayout 0,734 394x70 
+      LinearLayout 12,740 92x56 
+       LineIcon 47,745 22x22 
+       View 57,767 1x5 
+       TextView 12,772 92x19 模型
+      LinearLayout 104,740 92x56 
+       LineIcon 139,745 22x22 
+       View 149,767 1x5 
+       TextView 104,772 92x19 路由
+      LinearLayout 196,740 93x56 
+       LineIcon 231,745 22x22 
+       View 242,767 1x5 
+       TextView 196,772 93x19 用量
+      LinearLayout 289,740 93x56 
+       LineIcon 324,745 22x22 
+       View 335,767 1x5 
+       TextView 289,772 93x19 插件
+     View 47,802 22x2 

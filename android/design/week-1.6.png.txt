@@ -1,0 +1,114 @@
+FrameLayout 0,24 394x780 
+ LinearLayout 0,24 394x780 
+  LinearLayout 0,24 394x60 
+   LineIcon 24,40 28x28 
+   View 52,53 9x1 
+   TextView 61,41 233x26 Magpie
+   FrameLayout 294,32 44x44 
+    LineIcon 305,43 22x22 
+   FrameLayout 338,32 44x44 
+    LineIcon 349,43 22x22 
+  ScrollView 0,84 394x649 
+   LinearLayout 0,84 394x954 
+    TextView 24,98 346x40 用量
+    View 24,138 1x8 
+    TextView 24,146 346x19 本机空间 · UTC
+    View 24,165 1x18 
+    LinearLayout 24,183 346x50 
+     PeriodTabs 24,183 346x50 
+      LinearLayout 24,183 346x50 
+       TextView 24,183 86x48 今天
+       TextView 110,183 86x48 7 天
+       TextView 196,183 87x48 30 天
+       TextView 283,183 87x48 全部
+      View 24,232 346x1 
+      View 110,231 86x2 
+    View 24,233 1x12 
+    TextView 24,245 346x24 更新于 05:38 · 每 30 秒刷新
+    View 24,269 1x8 
+    LinearLayout 24,277 346x737 
+     LinearLayout 24,277 346x92 
+      LinearLayout 24,277 252x92 
+       TextView 24,277 252x20 调用次数
+       View 24,297 1x9 
+       TextView 24,306 252x63 11
+      LinearLayout 276,285 94x84 
+       LinearLayout 276,285 94x29 
+        TextView 276,285 48x29 117
+        View 324,299 6x1 
+        TextView 330,289 40x20 Token
+       View 369,314 1x9 
+       TextView 322,323 48x24 待定价
+       View 369,347 1x5 
+       TextView 305,352 65x17 10 次未定价
+     View 24,369 1x16 
+     LinearLayout 24,385 346x19 
+      TextView 24,385 255x19 完成率 90.9%
+      TextView 279,385 91x19 失败 1 · 取消 0
+     View 24,404 1x22 
+     LinearLayout 24,426 346x24 
+      TextView 24,426 322x24 调用趋势
+      TextView 346,429 24x17 按天
+     View 24,450 1x10 
+     UsageChart 24,460 346x145 
+     View 24,605 1x8 
+     TextView 24,613 346x28 轻点柱形查看时段数值
+     View 24,641 1x24 
+     LinearLayout 24,665 346x26 
+      TextView 24,665 286x26 模型用量
+      TextView 310,669 60x17 按调用次数
+     View 24,691 1x16 
+     LinearLayout 24,707 346x17 
+      TextView 24,707 270x17 模型 / 服务商
+      TextView 294,707 76x17 调用 · Token
+     View 24,724 1x9 
+     View 24,733 346x1 
+     LinearLayout 24,734 346x76 
+      LinearLayout 24,750 187x44 
+       TextView 24,750 187x21 android-echo
+       View 24,771 1x6 
+       TextView 24,777 187x17 安卓设备验证
+      View 211,750 14x1 
+      LinearLayout 225,750 145x42 
+       TextView 317,750 53x19 9 · 108
+       View 369,769 1x6 
+       TextView 334,775 36x17 待定价
+     View 24,810 346x1 
+     LinearLayout 24,811 346x76 
+      LinearLayout 24,827 187x44 
+       TextView 24,827 187x21 plugin-echo
+       View 24,848 1x6 
+       TextView 24,854 187x17 Android 插件运行验证
+      View 211,827 14x1 
+      LinearLayout 225,827 145x42 
+       TextView 337,827 33x19 2 · 9
+       View 369,846 1x6 
+       TextView 334,852 36x17 待定价
+     View 24,887 346x1 
+     View 24,888 1x22 
+     Button 24,910 346x48 查看请求明细
+     View 24,958 1x12 
+     LinearLayout 24,970 346x44 
+      TextView 24,970 278x44 Token 与计费明细
+      TextView 302,970 68x44 管理模型 →
+  LinearLayout 0,733 394x71 
+   View 0,733 394x1 
+   FrameLayout 0,734 394x70 
+    LinearLayout 0,734 394x70 
+     LinearLayout 12,740 92x56 
+      LineIcon 47,745 22x22 
+      View 57,767 1x5 
+      TextView 12,772 92x19 模型
+     LinearLayout 104,740 92x56 
+      LineIcon 139,745 22x22 
+      View 149,767 1x5 
+      TextView 104,772 92x19 路由
+     LinearLayout 196,740 93x56 
+      LineIcon 231,745 22x22 
+      View 242,767 1x5 
+      TextView 196,772 93x19 用量
+     LinearLayout 289,740 93x56 
+      LineIcon 324,745 22x22 
+      View 335,767 1x5 
+      TextView 289,772 93x19 插件
+    View 232,802 22x2 

@@ -1,0 +1,3 @@
+[submodule "magpie-core"]
+	path = magpie-core
+	url = https://github.com/yetone/magpie.git

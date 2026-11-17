@@ -1,0 +1,1 @@
+cat: /data/user/0/ai.magpie.android/files/native-acceptance/empty.png.txt: No such file or directory

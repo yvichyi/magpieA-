@@ -1,0 +1,10 @@
+/build/
+*.jks
+*.keystore
+*.p12
+*.pfx
+
+# Generated local verification and historical screenshots are separate delivery artifacts.
+/verification/
+/design/1.*/
+/tests/__pycache__/

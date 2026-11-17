@@ -1,0 +1,161 @@
+/* Installed by the Android host only; the upstream desktop UI is untouched. */
+@font-face { font-family: MagpieSans; font-weight: 100 900; font-display: swap; src: url('/__magpie_android/fonts/NotoSansSC.ttf') format('truetype'); }
+body.magpie-android,
+body.magpie-android :is(button, input, select, textarea) { font-family: MagpieSans, sans-serif !important; }
+body.web { --radius: 4px; }
+body.web .view { padding-top: 8px; }
+body.web .top { min-height: 48px; }
+body.web .top #nav { scrollbar-width: none; }
+body.web .top #nav::-webkit-scrollbar { display: none; }
+body.web button, body.web a, body.web input, body.web select { touch-action: manipulation; }
+body.web .text, body.web input, body.web select { border-radius: 3px; }
+body.web .modal .dialog { max-width: 100%; }
+body.web .modal .editor { overflow-wrap: anywhere; }
+/* Native toolbar and navigation own the Android shell. Keep upstream navigation
+   in the DOM so its routing and unsaved-editor checks keep working. */
+body.magpie-android > header.top,
+body.magpie-android > aside.sidebar { display: none !important; }
+body.magpie-android.side-nav { padding-left: 0 !important; --side-w: 0px; }
+body.magpie-android .view { padding-top: 16px; }
+body.magpie-android .row-head { min-height: 44px; }
+body.magpie-android :is(.text, .copy, .field) { border-radius: 3px; }
+body.magpie-android :is(.group, .card, .rows) { border-radius: 4px; }
+body.magpie-android .row { padding-top: 13px; padding-bottom: 13px; }
+html[data-theme="light"]:has(body.magpie-android) {
+  --bg: #ffffff; --fg: #181818; --fg-2: #525252;
+  --muted: #737373; --line: #e7e7e7; --line-2: #f0f0f0;
+  --card: #fff; --card-2: #f5f5f5; --pill: #f5f5f5;
+  --accent: #181818; --accent-soft: #f5f5f5;
+}
+@media (prefers-color-scheme: light) {
+  html:not([data-theme="dark"]):has(body.magpie-android) {
+    --bg: #ffffff; --fg: #181818; --fg-2: #525252;
+    --muted: #737373; --line: #e7e7e7; --line-2: #f0f0f0;
+    --card: #fff; --card-2: #f5f5f5; --pill: #f5f5f5;
+    --accent: #181818; --accent-soft: #f5f5f5;
+  }
+}
+@media (max-width: 480px) {
+  body.web .view { --view-left: 4px; --view-right: 4px; }
+  body.web .modal .dialog { border-radius: 6px; }
+  body.web .brand { font-size: 16px; }
+  body.web .row .sub { overflow-wrap: anywhere; }
+}
+
+body.magpie-android :is(.group, .card, .rows) { border-radius: 0; box-shadow: none; background: transparent; border-left: 0; border-right: 0; }
+
+/* Android product rhythm: shared typography and restrained editor entry. */
+body.magpie-android { font-size: 15px; line-height: 1.55; }
+body.magpie-android :is(button, input, select, textarea) { font-size: 14px; }
+body.magpie-android :is(.sub, .usage-note, .hint) { font-size: 13px; }
+body.magpie-android .row { padding-top: 15px; padding-bottom: 15px; }
+body.magpie-android .modal .dialog { border-radius: 12px; }
+@media (prefers-reduced-motion: reduce) { body.magpie-android *, body.magpie-android *::before, body.magpie-android *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }
+
+/* A phone plugin catalog: one reading column, no desktop tiles. */
+body.magpie-android #view-plugins { padding: 0 20px 24px; }
+body.magpie-android #view-plugins .pm-head { display:flex; flex-wrap:wrap; gap:12px; padding:16px 0; }
+body.magpie-android #view-plugins .pm-find { flex:1 0 100%; width:100%; height:48px; border-radius:4px; box-sizing:border-box; }
+body.magpie-android #view-plugins .pm-find input { font-size:15px; }
+body.magpie-android #view-plugins .pm-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:0; }
+body.magpie-android #view-plugins .pm-card { border:0; border-bottom:1px solid var(--line); border-radius:0; padding:20px 0; background:none; box-shadow:none; transform:none; gap:10px; }
+body.magpie-android #view-plugins .pm-card:hover { box-shadow:none; transform:none; }
+body.magpie-android #view-plugins .pm-name b { font-size:16px; line-height:1.4; white-space:normal; overflow-wrap:anywhere; }
+body.magpie-android #view-plugins .pm-top { align-items:flex-start; gap:10px; }
+body.magpie-android #view-plugins .pm-who { min-width:0; }
+body.magpie-android #view-plugins :is(.pm-sum,.pm-intro p) { font-size:14px; line-height:1.65; min-height:0; -webkit-line-clamp:3; }
+body.magpie-android #view-plugins :is(.pm-by,.pm-meta,.pm-ver,.pm-chip,.pm-mirror,.pm-sechead span) { font-size:12px; }
+body.magpie-android #view-plugins :is(button,.segs button) { min-height:44px; }
+body.magpie-android #view-plugins .pm-card button { min-width:64px; flex-shrink:0; }
+body.magpie-android #view-plugins .pm-intro { padding:20px 0; border:0; border-radius:0; background:none; }
+body.magpie-android #view-plugins .pm-art { display:none; }
+body.magpie-android #view-plugins .pm-sechead h3 { font-size:15px; }
+body.magpie-android #view-plugins .pm-manual { flex-wrap:wrap; gap:10px; }
+body.magpie-android #view-plugins .pm-manual input { flex:1 0 100%; width:100%; min-height:48px; font-size:15px; box-sizing:border-box; }
+body.magpie-android #view-plugins .pm-row { align-items:flex-start; }
+body.magpie-android #view-plugins .pm-row .sub { white-space:normal; overflow-wrap:anywhere; }
+body.magpie-android #view-plugins .pm-row .name { font-size:16px; }
+body.magpie-android #view-plugins .segs { display:flex; width:100%; }
+body.magpie-android #view-plugins .segs button { flex:1; font-size:14px; }
+body.magpie-android #android-plugin-operation { padding:16px 0; border-bottom:1px solid var(--line); overflow-wrap:anywhere; }
+body.magpie-android #android-plugin-operation .android-plugin-title { font-size:15px; font-weight:600; }
+body.magpie-android #android-plugin-operation p { margin:8px 0; font-size:13px; color:var(--muted); line-height:1.6; }
+body.magpie-android #android-plugin-operation button { margin-top:8px; padding:8px 16px; min-height:44px; background:var(--fg); color:var(--bg); border:0; border-radius:4px; font:inherit; }
+body.magpie-android #android-plugin-operation { position:sticky; top:0; z-index:10; background:var(--bg); }
+/* Native navigation hides the desktop sidebar, so retain the local tabs it replaced. */
+body.magpie-android.side-nav :is(#view-plugins .lib-tabs,#view-library .lib-tabs,#usageTab,#setTabs):not([hidden]) { display:flex !important; }
+body.magpie-android #view-plugins .lib-tabs { flex:1 0 100%; gap:0; border-bottom:1px solid var(--line); }
+body.magpie-android #view-plugins .lib-tabs .opt { flex:1; min-height:48px; font-size:14px; text-align:center; }
+/* Desktop toolbars were pinned beside its sidebar; on a phone they own a normal row. */
+body.magpie-android :is(#view-plugins .pm-head,#view-library .lib-head,#view-settings .set-head) {
+  position:relative; z-index:0; top:auto; left:auto; right:auto; height:auto; min-height:48px;
+  margin:0; padding:16px 0; display:flex; flex-wrap:wrap; justify-content:flex-start;
+  pointer-events:auto; --wails-draggable:no-drag;
+}
+/* Installed entries retain full names; actions sit on a separate line. */
+body.magpie-android #view-plugins .pm-list { border:0; border-radius:0; box-shadow:none; background:none; }
+body.magpie-android #view-plugins .pm-list .pm-row { display:grid; grid-template-columns:32px minmax(0,1fr); gap:10px 12px; padding:20px 0; align-items:start; }
+body.magpie-android #view-plugins .pm-row > .who { grid-column:2; width:100%; }
+body.magpie-android #view-plugins .pm-row > .val { grid-column:2; justify-content:flex-start; flex-wrap:wrap; gap:8px; }
+body.magpie-android #view-plugins .pm-row .name { flex-wrap:wrap; align-items:baseline; gap:6px 8px; }
+body.magpie-android #view-plugins .pm-row .name > span:first-child { flex:1 0 100%; white-space:normal; overflow:visible; text-overflow:clip; overflow-wrap:anywhere; }
+body.magpie-android #view-plugins .pm-row .sub { font-size:13px; line-height:1.6; }
+body.magpie-android #view-plugins .pm-foot { font-size:12px; color:var(--muted); }
+body.magpie-android #view-plugins .pm-foot button { font-size:14px; }
+body.magpie-android #view-plugins .pm-listhead .segs { width:auto; margin-left:auto; }
+body.magpie-android #view-plugins .pm-head { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; }
+body.magpie-android :is(#view-plugins .pm-head,#view-library .lib-head)::before,
+body.magpie-android #view-plugins .lib-tabs > .thumb { display:none; }
+body.magpie-android #view-plugins .pm-head > .grow { display:none; }
+body.magpie-android #view-plugins .pm-head .lib-tabs { grid-column:1/-1; width:100%; padding:0; background:none; border:0; border-radius:0; box-shadow:none; }
+body.magpie-android #view-plugins .pm-head .lib-tabs .opt { border:0; border-bottom:2px solid transparent; border-radius:0; box-shadow:none; background:none; }
+body.magpie-android #view-plugins .pm-head .lib-tabs .opt.on { border-bottom-color:var(--fg); color:var(--fg); }
+body.magpie-android #view-plugins .pm-head .pm-find { grid-column:1; grid-row:2; width:100%; }
+body.magpie-android #view-plugins .pm-head .pm-mirror { grid-column:2; grid-row:2; min-height:48px; }
+
+/* Advanced editing is a phone page, with one scrolling form and a stable action bar. */
+body.magpie-android #modal:has(.editor) { inset:0 !important; padding:0; background:var(--bg); backdrop-filter:none; align-items:stretch; }
+body.magpie-android #modal .dialog:has(> .editor) { position:relative !important; top:0 !important; left:0 !important; width:100%; max-width:none; height:100%; max-height:100% !important; margin:0; border:0; border-radius:0; box-shadow:none; display:flex; flex-direction:column; }
+body.magpie-android #modal .editor { width:100%; min-height:0; height:100%; display:flex; flex-direction:column; overflow:hidden; border:0; border-radius:0; box-shadow:none; }
+body.magpie-android #modal .editor .ehead { flex:none; padding:18px 20px; font-size:18px; border-bottom:1px solid var(--line); }
+body.magpie-android #modal .editor .ebody { flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:20px; }
+body.magpie-android #modal .editor .bar { flex:none; padding:12px 20px; background:var(--bg); border-top:1px solid var(--line); }
+body.magpie-android #modal .editor :is(input:not([type=checkbox]):not([type=file]),select) { min-height:48px; font-size:16px; box-sizing:border-box; }
+body.magpie-android #modal .editor .bar button { min-height:48px; min-width:72px; font-size:15px; }
+body.magpie-android #modal .editor .base-apis { flex-wrap:wrap; gap:0; box-shadow:none; border-radius:0; background:none; }
+body.magpie-android #modal .editor .base-apis > .thumb { display:none; }
+body.magpie-android #modal .editor .base-apis .opt { min-height:44px; border-radius:0; border-bottom:2px solid transparent; }
+body.magpie-android #modal .editor .base-apis .opt.on { border-bottom-color:var(--fg); background:none; box-shadow:none; }
+
+/* Preserve real content named .top; only direct desktop chrome is hidden above. */
+body.magpie-android :is(#view-library .lib-headacts,#view-settings .set-head) { flex-wrap:wrap; min-width:0; width:100%; margin-left:0; justify-content:flex-start; gap:8px; }
+body.magpie-android :is(#view-library .lib-headacts,#view-settings .set-head) button { min-height:44px; max-width:100%; height:auto; white-space:normal; }
+body.magpie-android.side-nav.tools-tight #view-library .lib-headacts button > span:not([hidden]):not(.lib-mini):not(.lib-switch) { display:inline !important; white-space:normal; }
+body.magpie-android :is(#view-library .lib-tabs,#view-settings #setTabs) { display:flex; flex-wrap:wrap; gap:6px; width:100%; max-width:100%; border-radius:0; background:none; box-shadow:none; }
+body.magpie-android :is(#view-library .lib-tabs,#view-settings #setTabs) > .thumb { display:none; }
+body.magpie-android :is(#view-library .lib-tabs,#view-settings #setTabs) .opt:not([hidden]) { flex:1 1 auto; min-height:44px; height:auto; padding:10px 12px; line-height:1.4; white-space:normal; border-radius:0; border-bottom:2px solid transparent; }
+body.magpie-android :is(#view-library .lib-tabs,#view-settings #setTabs) .opt.on { border-bottom-color:var(--fg); }
+body.magpie-android :is(#view-library .lib-tabs,#view-settings #setTabs) .opt::after { content:none; }
+body.magpie-android [hidden] { display:none !important; }
+body.magpie-android #modal .editor { padding:0; gap:0; }
+body.magpie-android #modal .editor .ebody { grid-template-columns:minmax(0,1fr); gap:8px; }
+body.magpie-android #modal .editor .ehead { flex-wrap:wrap; }
+body.magpie-android #modal .editor :is(.plugin-option,.pair) { flex-wrap:wrap; }
+body.magpie-android #modal .editor .plugin-option-text { flex:1 1 100%; }
+body.magpie-android #modal .editor .pair > input { min-width:0; flex:1 1 180px; max-width:100%; }
+body.magpie-android #modal .editor .headers .pair > input { flex:1 1 100%; }
+body.magpie-android #modal .editor .headers .pair .side .text { min-width:44px; min-height:44px; width:auto; height:auto; }
+body.magpie-android #modal .editor .bar { display:flex; flex-wrap:wrap; gap:8px; }
+body.magpie-android #modal .editor .bar button { flex:1 1 120px; min-width:0; max-width:100%; height:auto; white-space:normal; }
+/* A keyboard/landscape viewport cannot hold multiple fixed bars: use one scroller. */
+@media (max-height:480px) {
+ body.magpie-android #modal .dialog:has(> .editor) { overflow-y:auto; display:block; }
+ body.magpie-android #modal .editor { height:auto; min-height:100%; overflow:visible; }
+ body.magpie-android #modal .editor .ebody { flex:none; overflow:visible; }
+ body.magpie-android #modal .editor .bar { position:static; }
+}
+body.magpie-android .editor .plugin-options.top { height:auto; min-height:0; padding:0; display:flex; flex-direction:column; align-items:stretch; gap:14px; }
+/* Gateway protocol/share/code controls must keep finger-sized targets too. */
+body.magpie-android #view-gateway button { min-height:44px; max-width:100%; height:auto; white-space:normal; }
+body.magpie-android #view-gateway .segs { flex-wrap:wrap; }
+body.magpie-android #view-gateway .segs .opt { min-width:0; }

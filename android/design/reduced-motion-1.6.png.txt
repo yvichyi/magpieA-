@@ -1,0 +1,105 @@
+FrameLayout 0,24 394x780 
+ LinearLayout 0,24 394x780 
+  LinearLayout 0,24 394x60 
+   LineIcon 24,40 28x28 
+   View 52,53 9x1 
+   TextView 61,41 231x26 Magpie
+   TextView 292,32 38x44 本机 ⌄
+   View 330,53 8x1 
+   FrameLayout 338,32 44x44 
+    LineIcon 349,43 22x22 
+  ScrollView 0,84 394x649 
+   LinearLayout 0,84 394x743 
+    LinearLayout 24,84 346x68 
+     LinearLayout 24,106 292x19 
+      LinearLayout 24,106 292x19 
+       View 24,112 6x6 
+       View 30,115 8x1 
+       TextView 38,106 39x19 运行中
+       View 77,115 8x1 
+       TextView 85,106 231x19 127.0.0.1:3425
+      TextView 24,106 0x0 
+     View 316,115 8x1 
+     Button 324,92 46x48 管理
+    View 24,152 346x1 
+    View 24,153 1x22 
+    LinearLayout 24,175 346x44 
+     TextView 24,177 258x40 模型
+     FrameLayout 282,175 44x44 
+      LineIcon 293,186 22x22 
+     FrameLayout 326,175 44x44 
+      LineIcon 337,186 22x22 
+    EditText 24,219 346x0 
+    TextView 24,219 346x39 2 个服务商 · 1 个路由组
+    LinearLayout 24,258 346x363 
+     LinearLayout 24,258 346x54 
+      TextView 24,276 260x24 安卓设备验证
+      TextView 284,279 46x17 2 个模型
+      View 330,287 12x1 
+      TextView 342,266 28x44 编辑
+     LinearLayout 24,312 346x76 
+      LinearLayout 24,326 292x48 
+       TextView 24,326 292x24 android-echo
+       View 24,350 1x7 
+       TextView 24,357 292x17 android-device-verified/android-echo
+      View 316,349 10x1 
+      FrameLayout 326,328 44x44 
+       LineIcon 337,339 21x21 
+       LineIcon 337,339 21x21 
+     View 24,388 346x1 
+     LinearLayout 24,389 346x76 
+      LinearLayout 24,403 292x48 
+       TextView 24,403 292x24 android-limited
+       View 24,427 1x7 
+       TextView 24,434 292x17 android-device-verified/android-limited
+      View 316,426 10x1 
+      FrameLayout 326,405 44x44 
+       LineIcon 337,416 21x21 
+       LineIcon 337,416 21x21 
+     View 24,465 346x1 
+     View 24,466 1x12 
+     LinearLayout 24,478 346x54 
+      TextView 24,496 260x24 Android 插件运行验证
+      TextView 284,499 46x17 1 个模型
+      View 330,507 12x1 
+      TextView 342,486 28x44 编辑
+     LinearLayout 24,532 346x76 
+      LinearLayout 24,546 292x48 
+       TextView 24,546 292x24 Plugin Echo
+       View 24,570 1x7 
+       TextView 24,577 292x17 androidfixture/plugin-echo
+      View 316,569 10x1 
+      FrameLayout 326,548 44x44 
+       LineIcon 337,559 21x21 
+       LineIcon 337,559 21x21 
+     View 24,608 346x1 
+     View 24,609 1x12 
+    View 24,621 1x24 
+    LinearLayout 24,645 346x44 
+     TextView 24,657 273x20 今日用量
+     TextView 297,645 73x44 查看用量 →
+    TextView 24,689 346x21 11 次调用  ·  117 Token  ·  费用待定价
+    TextView 24,710 346x45 10 次未定价，未计入费用
+    Button 24,755 346x48 接入 Agent
+  LinearLayout 0,733 394x71 
+   LinearLayout 0,733 394x71 
+    View 0,733 394x1 
+    FrameLayout 0,734 394x70 
+     LinearLayout 0,734 394x70 
+      LinearLayout 12,740 92x56 
+       LineIcon 47,745 22x22 
+       View 57,767 1x5 
+       TextView 12,772 92x19 模型
+      LinearLayout 104,740 92x56 
+       LineIcon 139,745 22x22 
+       View 149,767 1x5 
+       TextView 104,772 92x19 路由
+      LinearLayout 196,740 93x56 
+       LineIcon 231,745 22x22 
+       View 242,767 1x5 
+       TextView 196,772 93x19 用量
+      LinearLayout 289,740 93x56 
+       LineIcon 324,745 22x22 
+       View 335,767 1x5 
+       TextView 289,772 93x19 插件
+     View 47,802 22x2 
