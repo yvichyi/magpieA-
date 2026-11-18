@@ -60,9 +60,12 @@ final class PluginsScreen implements AppScreen {
     private Runnable redraw;
     private AlertDialog dialog;
     private Attempt attempt;
-    private int generation, tab, limit = BATCH;
+    private java.util.function.Consumer<Completion> restoredCompletion;
+    private int generation, tab, limit = BATCH, restoredScroll;
     private boolean disposed;
     private String requestedQuery = "";
+
+    private record AppearanceState(int tab, int limit, String query, String requestedQuery, int scroll, Attempt attempt) {}
 
     static final class Scope {
         final String workspace, origin, key;
@@ -88,9 +91,11 @@ final class PluginsScreen implements AppScreen {
     }
 
     private enum Outcome { RUNNING, SUCCESS, FAILED, UNCERTAIN }
+    private record Completion(Outcome outcome, PluginSnapshot.Installed installed, List<PluginSnapshot.Builtin> builtins) {}
     private static final class Attempt {
         final PluginOperation operation;
         final long startedAt = SystemClock.elapsedRealtime();
+        java.util.function.Consumer<Completion> restoredCompletion;
         Outcome outcome = Outcome.RUNNING;
         String detail = "";
         boolean checkedAfterDeadline;
@@ -157,6 +162,29 @@ final class PluginsScreen implements AppScreen {
     }
 
     @Override public View view() { return scroll; }
+
+    @Override public Object saveAppearanceState() {
+        return new AppearanceState(tab, limit, queryText(), requestedQuery,
+                Math.max(restoredScroll, scroll.getScrollY()), attempt);
+    }
+
+    @Override public void restoreAppearanceState(Object state) {
+        if (!(state instanceof AppearanceState saved)) return;
+        scope = new Scope(activity);
+        tab = saved.tab();
+        query.setText(saved.query());
+        limit = saved.limit();
+        requestedQuery = saved.requestedQuery();
+        restoredScroll = saved.scroll();
+        attempt = saved.attempt();
+        if (attempt != null && attempt.outcome == Outcome.RUNNING) {
+            Scope expected = scope;
+            Attempt pending = attempt;
+            restoredCompletion = completion -> publishCompletion(expected, pending, completion);
+            pending.restoredCompletion = restoredCompletion;
+        }
+        render();
+    }
     @Override public void onResume() { activate(this, this::render); }
     @Override public void onPause() { deactivate(this); }
     @Override public boolean onBack() {
@@ -168,6 +196,12 @@ final class PluginsScreen implements AppScreen {
         if (visible != null) deactivate(visible);
         for (Resource<?> resource : resources) resource.clear();
         scope = null;
+        clearAttempt();
+    }
+
+    private void clearAttempt() {
+        if (attempt != null && attempt.restoredCompletion == restoredCompletion) attempt.restoredCompletion = null;
+        restoredCompletion = null;
         attempt = null;
     }
 
@@ -197,7 +231,8 @@ final class PluginsScreen implements AppScreen {
         if (dialog != null) dialog.dismiss();
         generation++;
         scope = next;
-        attempt = null;
+        clearAttempt();
+        restoredScroll = 0;
         for (Resource<?> resource : resources) resource.clear();
         requestedQuery = "";
         limit = BATCH;
@@ -280,6 +315,7 @@ final class PluginsScreen implements AppScreen {
         hideKeyboard(query);
         tab = next;
         limit = BATCH;
+        restoredScroll = 0;
         if (tab == 1) refresh(false);
         render();
         scroll.smoothScrollTo(0, 0);
@@ -301,7 +337,19 @@ final class PluginsScreen implements AppScreen {
         showOperation(operationPanel);
         find.setVisibility(tab == 1 ? View.VISIBLE : View.GONE);
         renderResults();
+        boolean hasRows = switch (tab) {
+            case 1 -> loaded(listings) && loaded(github) && (requestedQuery.isEmpty() || loaded(search));
+            case 2 -> builtins.value != null;
+            default -> installed.value != null;
+        };
+        if (restoredScroll > 0 && hasRows) {
+            int position = restoredScroll;
+            restoredScroll = 0;
+            scroll.post(() -> scroll.scrollTo(0, position));
+        }
     }
+
+    private static boolean loaded(Resource<?> resource) { return resource.value != null || !resource.error.isEmpty(); }
 
     private void renderResults() {
         results.removeAllViews();
@@ -543,16 +591,25 @@ final class PluginsScreen implements AppScreen {
 
     private void finish(Scope expected, Attempt operation, Outcome result, String detail,
                         PluginSnapshot.Installed installedResult, List<PluginSnapshot.Builtin> builtinResult) {
-        if (disposed || attempt != operation || !expected.same(scope) || !expected.same(new Scope(activity))) return;
         operation.outcome = result;
         operation.detail = detail;
+        Completion completion = new Completion(result, installedResult, builtinResult);
+        var listener = operation.restoredCompletion;
+        operation.restoredCompletion = null;
+        if (listener != null) listener.accept(completion);
+        else publishCompletion(expected, operation, completion);
+    }
+
+    private void publishCompletion(Scope expected, Attempt operation, Completion completion) {
+        if (disposed || attempt != operation || !expected.same(scope) || !expected.same(new Scope(activity))) return;
+        restoredCompletion = null;
         Resource<?> affected = operation.operation.builtin() ? builtins : installed;
         affected.invalidate();
         updates.clear();
         if (visible == null) return;
-        if (result == Outcome.SUCCESS) {
-            if (installedResult != null) { installed.value = installedResult; installed.error = ""; }
-            if (builtinResult != null) { builtins.value = builtinResult; builtins.error = ""; }
+        if (completion.outcome() == Outcome.SUCCESS) {
+            if (completion.installed() != null) { installed.value = completion.installed(); installed.error = ""; }
+            if (completion.builtins() != null) { builtins.value = completion.builtins(); builtins.error = ""; }
         }
         notifyChange();
         refresh(true);

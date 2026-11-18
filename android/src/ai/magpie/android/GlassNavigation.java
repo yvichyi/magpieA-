@@ -66,7 +66,7 @@ final class GlassNavigation extends LinearLayout {
             boolean active = selected == i;
             getChildAt(i).setSelected(active);
             icons[i].setAlpha(active ? 1f : .64f);
-            labels[i].setTextColor(active ? ui.ink : ui.muted);
+            labels[i].setTextColor(active ? ui.accent : ui.muted);
             labels[i].setTypeface(ui.font(false, active ? 600 : 400));
         }
         if (!canMove || position == selected) {
@@ -107,6 +107,13 @@ final class GlassNavigation extends LinearLayout {
         float top = getPaddingTop();
         float bottom = getHeight() - getPaddingBottom();
         float radius = (bottom - top) / 2f;
+        if (ui.swiss()) {
+            fill.setShader(null);
+            fill.setColor(ui.accent);
+            canvas.drawRect(center - half + ui.dp(12), getHeight() - ui.dp(3),
+                    center + half - ui.dp(12), getHeight(), fill);
+            return;
+        }
         boolean opaque = GlassOptions.reduceTransparency(getContext()) || !GlassOptions.glassEnabled(getContext());
         fill.setShader(opaque ? null : finish);
         fill.setColor(opaque ? ui.soft : Color.WHITE);

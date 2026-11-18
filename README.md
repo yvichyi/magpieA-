@@ -1,17 +1,17 @@
 # Magpie Android
 
-Magpie 的独立安卓移植版。当前为 **2.0.0-preview2**，内置 Magpie 核心 **v0.1.4342**。
+Magpie 的独立安卓移植版。当前为 **2.0.0-preview3**，内置 Magpie 核心 **v0.1.4342**。
 
-**[下载手机 ARM64 APK](https://raw.githubusercontent.com/yvichyi/magpieA-/c8b7ded550a92c80501fb042bc0c424730adca28/Magpie-Android-2.0.0-preview2-arm64.apk)** · [全部安装包与校验文件](https://github.com/yvichyi/magpieA-/releases/tag/v2.0.0-preview2)
+**[下载手机 ARM64 APK](https://raw.githubusercontent.com/yvichyi/magpieA-/e6f35285f4e1a27c2519700fb6341f67a9d95842/Magpie-Android-2.0.0-preview3-arm64.apk)** · [全部安装包与校验文件](https://github.com/yvichyi/magpieA-/releases/tag/v2.0.0-preview3)
 
-[安装和使用](android/README.zh-CN.md) · [折射与动效验收](android/docs/preview-2.0-motion/README.md) · [预览 1 页面实拍](android/docs/preview-2.0/README.md)
+[安装和使用](android/README.zh-CN.md) · [主题样例与验收](android/docs/preview-2.0-themes/README.md) · [预览 1 页面实拍](android/docs/preview-2.0/README.md)
 
 接入、模型、插件和用量各有底栏入口。接入可生成并测试三种兼容协议的配置。用量包括趋势、Token 构成、分布、月历和请求明细，可按筛选条件导出 CSV。设置可搜索，并提供降低透明度和减少动效选项。
 
 ## 完整源码与构建
 
 ```sh
-git clone --branch v2.0.0-preview2 --depth 1 --recurse-submodules --shallow-submodules https://github.com/yvichyi/magpieA-.git
+git clone --branch v2.0.0-preview3 --depth 1 --recurse-submodules --shallow-submodules https://github.com/yvichyi/magpieA-.git
 cd magpieA-
 bash android/build.sh
 ```

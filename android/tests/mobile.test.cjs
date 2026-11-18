@@ -211,6 +211,32 @@ test('Android advanced options use solid controls when transparency is reduced a
  const still=await visuals();assert.equal(still.glass,enabled.glass);assert.ok(parseFloat(still.motion)<.001);
 });
 
+test('Swiss appearance uses paper tones and square controls in the embedded settings',async t=>{
+ const b=await chromium.launch(options);t.after(()=>b.close());const p=await b.newPage();
+ await p.setContent('<body class="web"><main id="view-settings" class="view"><div id="setTabs"><button aria-selected="true">Network</button></div><input></main></body>');
+ await p.addStyleTag({path:path.join(coreRoot,'internal/gui/assets/app.css')});
+ await p.addStyleTag({content:mobileCss});await p.addScriptTag({content:adapter});
+ const style=()=>p.evaluate(()=>{const tab=document.querySelector('#setTabs'), choice=tab.querySelector('button');return {
+  paper:getComputedStyle(document.documentElement).getPropertyValue('--bg').trim(),
+  radius:getComputedStyle(tab).borderRadius, accent:getComputedStyle(choice).color
+ };});
+ await p.evaluate(()=>{document.documentElement.dataset.theme='light';magpieAndroidVisualOptions(true,false,'swiss');});
+ assert.deepEqual(await style(),{paper:'#f4f2eb',radius:'0px',accent:'rgb(171, 37, 30)'});
+ await p.emulateMedia({colorScheme:'dark'});
+ await p.evaluate(()=>delete document.documentElement.dataset.theme);
+ assert.deepEqual(await style(),{paper:'#1c1b17',radius:'0px',accent:'rgb(255, 132, 119)'});
+ const foreground=await p.evaluate(()=>{
+  const html=getComputedStyle(document.documentElement);
+  return ['--accent-fg','--ctl-fg'].map(name=>html.getPropertyValue(name).trim());
+ });
+ assert.deepEqual(foreground,['#1c1b17','#ddd8cb']);
+ await p.emulateMedia({colorScheme:'light'});
+ await p.evaluate(()=>magpieAndroidVisualOptions(true,false,'swiss',true));
+ assert.equal((await style()).paper,'#1c1b17');
+ await p.evaluate(()=>magpieAndroidVisualOptions(false,false,'glass'));
+ assert.equal((await style()).radius,'17px');
+});
+
 test('Android settings keeps the real tabs and search reachable in a narrow viewport',async t=>{
  const b=await chromium.launch(options);t.after(()=>b.close());const p=await b.newPage({viewport:{width:320,height:568}});
  await p.setContent('<body class="window web side-nav"><main id="view-settings" class="view"><div class="row-head set-head"><div id="setTabs" class="warm-tabs set-tabs"><button type="button" role="tab" data-set="general" aria-selected="true">General</button><button type="button" role="tab" data-set="network">Network and sharing</button><button type="button" role="tab" data-set="sync">Sync and backup</button></div><input class="sess-filter set-q" id="setQ" aria-label="Find a setting" type="search"></div><section class="set-page"><div class="list prefs"><div class="row pref"><div class="who"><div class="name">Setting name</div></div></div></div></section></main></body>');

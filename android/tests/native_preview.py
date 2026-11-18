@@ -19,7 +19,7 @@ from uuid import uuid4
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--mode', choices=['flow', 'stats', 'small', 'glass'], default='flow')
+parser.add_argument('--mode', choices=['flow', 'stats', 'small', 'glass', 'themes'], default='flow')
 parser.add_argument('--evidence', type=Path, required=True)
 args = parser.parse_args()
 ADB = os.environ.get('ADB', '/workspace/toolchains/android-sdk/platform-tools/adb')

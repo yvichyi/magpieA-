@@ -60,7 +60,7 @@ final class GroupCreateScreen implements AppScreen {
         name.setHintTextColor(ui.muted);
         name.setMinHeight(ui.dp(48));
         name.setPadding(ui.dp(14), 0, ui.dp(14), 0);
-        name.setBackground(ui.shape(ui.card, 12, true));
+        name.setBackground(ui.field(ui.card, 12));
         body.addView(name, new LinearLayout.LayoutParams(-1, -2));
         ui.space(body, 18);
         body.addView(ui.text("路由策略", 15, ui.ink, true));

@@ -65,7 +65,9 @@ final class CatalogScreen implements AppScreen {
     private String shownWorkspace = "";
     private CatalogLoad.Scope setupScope;
     private int found;
-    private boolean settingQuery, needsRender = true, shownReady, shownFailed;
+    private boolean settingQuery, needsRender = true, shownReady, shownFailed, restoringScroll;
+
+    private record AppearanceState(Map<String, WorkspaceView> workspaces) {}
 
     CatalogScreen(ScreenHost host) {
         this.host = host;
@@ -94,7 +96,7 @@ final class CatalogScreen implements AppScreen {
         search.setTypeface(ui.font(false, 400));
         search.setMinHeight(ui.dp(48));
         search.setPadding(ui.dp(12), ui.dp(8), ui.dp(12), ui.dp(8));
-        search.setBackground(ui.shape(ui.soft, 12, true));
+        search.setBackground(ui.field(ui.soft, 12));
         search.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
         search.setOnEditorActionListener((v, action, event) -> {
             if (action != EditorInfo.IME_ACTION_SEARCH) return false;
@@ -148,6 +150,17 @@ final class CatalogScreen implements AppScreen {
     }
 
     @Override public View view() { return scroll; }
+
+    @Override public Object saveAppearanceState() { return new AppearanceState(new HashMap<>(workspaces)); }
+
+    @Override public void restoreAppearanceState(Object state) {
+        if (!(state instanceof AppearanceState saved)) return;
+        workspaces.clear();
+        workspaces.putAll(saved.workspaces());
+        workspace = null;
+        restoringScroll = true;
+        render(false);
+    }
 
     @Override public void onResume() {
         needsRender = true;
@@ -262,13 +275,14 @@ final class CatalogScreen implements AppScreen {
         }
         boolean ready = repository.ready();
         if (force || newWorkspace || needsRender || shown != load.data || shownReady != ready || shownFailed != load.failed) {
-            int position = newWorkspace ? tab().scroll : scroll.getScrollY();
+            int position = newWorkspace || restoringScroll ? tab().scroll : scroll.getScrollY();
             shown = load.data;
             shownReady = ready;
             shownFailed = load.failed;
             needsRender = false;
             renderControls();
             renderResults();
+            if (shown != null) restoringScroll = false;
             if (!force) restoreScroll(position);
         }
         renderSummary();
@@ -292,9 +306,9 @@ final class CatalogScreen implements AppScreen {
 
     private void styleSelection(TextView button, boolean selected) {
         button.setSelected(selected);
-        button.setTextColor(selected ? ui.ink : ui.muted);
+        button.setTextColor(selected ? ui.accent : ui.muted);
         button.setTypeface(ui.font(false, selected ? 600 : 400));
-        button.setBackground(ui.ripple(selected ? ui.soft : Color.TRANSPARENT, 12));
+        button.setBackground(ui.ripple(selected ? (ui.swiss() ? ui.accentSoft : ui.soft) : Color.TRANSPARENT, 12));
     }
 
     private void renderSummary() {

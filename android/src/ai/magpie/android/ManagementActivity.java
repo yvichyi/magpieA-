@@ -186,7 +186,10 @@ public final class ManagementActivity extends Activity {
     @Override protected void onPause(){UiMotion.pause(this);super.onPause();}
     @Override protected void onSaveInstanceState(Bundle out){out.putString("view",currentView);super.onSaveInstanceState(out);}
     private String visualOptions(){
-        return "window.magpieAndroidVisualOptions?.("+GlassOptions.solidSurface(this)+","+GlassOptions.stillMotion(this)+");";
+        boolean night = (getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
+                == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+        return "window.magpieAndroidVisualOptions?.(" + GlassOptions.solidSurface(this) + ","
+                + GlassOptions.stillMotion(this) + "," + JSONObject.quote(Ui.appearance(this).id) + "," + night + ");";
     }
     private boolean documentCurrent(int epoch){
         return documentEpoch==epoch&&pageLoaded&&!rendererGone&&!isFinishing()&&!isDestroyed()

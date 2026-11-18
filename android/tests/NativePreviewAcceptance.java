@@ -63,7 +63,7 @@ public final class NativePreviewAcceptance extends Instrumentation {
             });
             home = (MainActivity) startActivitySync(new Intent(target, MainActivity.class)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
-            if (!mode.equals("glass")) {
+            if (!mode.equals("glass") && !mode.equals("themes")) {
                 if (!GatewayService.ready) click("启动网关");
                 await(() -> GatewayService.ready, 180_000, "Bundled gateway did not start");
             }
@@ -96,6 +96,8 @@ public final class NativePreviewAcceptance extends Instrumentation {
             } else if (mode.equals("glass")) {
                 testNavigationMotion();
                 testGlassBackdrop();
+            } else if (mode.equals("themes")) {
+                testThemeSelection();
             } else if (mode.equals("stats")) {
                 capture("04-connection");
                 testInsights(true);
@@ -267,6 +269,50 @@ public final class NativePreviewAcceptance extends Instrumentation {
         waitActivity(MainActivity.class);
         awaitText("条匹配记录", 30_000);
         stage("SETTINGS_RETURN_PRESERVES_REQUEST_LIST");
+    }
+
+    private void testThemeSelection() throws Exception {
+        waitActivity(MainActivity.class);
+        ui(() -> require(glassFrame().getBackground() instanceof ArchitectureBackdrop,
+                "Default appearance must put the bundled photo beneath the chrome"));
+        capture("01-glass-connection");
+        click("模型");
+        fill("搜索模型", "preview");
+        changeTheme(Appearance.SWISS);
+        ui(() -> {
+            require("home".equals(home.currentRootId()), "Theme change lost the selected root");
+            EditText search = input(decor(), "搜索模型");
+            require(search != null && "preview".contentEquals(search.getText()), "Theme change lost the catalog query");
+            require(glassFrame().getBackground() instanceof android.graphics.drawable.ColorDrawable,
+                    "Swiss appearance must use a flat reading surface");
+        });
+        capture("02-swiss-models");
+        click("插件");
+        capture("03-swiss-plugins");
+        click("用量");
+        capture("04-swiss-usage");
+        click("模型");
+        changeTheme(Appearance.GLASS);
+        ui(() -> require(glassFrame().getBackground() instanceof ArchitectureBackdrop,
+                "Returning to glass must restore the photograph"));
+        stage("THEMES_SWITCH_BOTH_WAYS_AND_KEEP_MODEL_QUERY");
+    }
+
+    private void changeTheme(Appearance theme) throws Exception {
+        MainActivity previous = home;
+        click("打开设置");
+        waitActivity(ToolsActivity.class);
+        Activity settings = resumed.get();
+        click("选择界面主题");
+        accessibilityClick(theme.label, 20_000);
+        await(() -> resumed.get() instanceof ToolsActivity && resumed.get() != settings
+                && decor().hasWindowFocus(), 45_000, "Settings did not adopt the theme");
+        if (theme == Appearance.SWISS) capture("05-swiss-settings");
+        back();
+        await(() -> resumed.get() instanceof MainActivity && resumed.get() != previous
+                && decor().hasWindowFocus(), 45_000, "Workspace did not adopt the theme");
+        home = (MainActivity) resumed.get();
+        require(Ui.appearance(target) == theme, "Theme preference did not persist");
     }
 
     private void testNavigationMotion() throws Exception {

@@ -86,6 +86,10 @@ final class InsightsScreen implements AppScreen {
     private Button earlierPoint, laterPoint;
     private int pointIndex;
 
+    private record AppearanceState(LedgerQuery query, long offset, int tab, int[] positions,
+            int trendMetric, int calendarMetric, int groupBy, int groupLimit,
+            YearMonth month, LocalDate calendarDay, Instant trendTime, ReturnTo returnTo) {}
+
     private static final class ReturnTo {
         final int tab;
         final LedgerQuery query;
@@ -134,6 +138,28 @@ final class InsightsScreen implements AppScreen {
     }
 
     @Override public View view() { return scroll; }
+
+    @Override public Object saveAppearanceState() {
+        return new AppearanceState(query, offset, tab, positions.clone(), trendMetric, calendarMetric, groupBy,
+                groupLimit, month, calendarDay, trendTime, returnTo);
+    }
+
+    @Override public void restoreAppearanceState(Object state) {
+        if (!(state instanceof AppearanceState saved)) return;
+        query = saved.query();
+        offset = saved.offset();
+        tab = saved.tab();
+        System.arraycopy(saved.positions(), 0, positions, 0, positions.length);
+        trendMetric = saved.trendMetric();
+        calendarMetric = saved.calendarMetric();
+        groupBy = saved.groupBy();
+        groupLimit = saved.groupLimit();
+        month = saved.month();
+        calendarDay = saved.calendarDay();
+        trendTime = saved.trendTime();
+        returnTo = saved.returnTo();
+        render(positions[tab]);
+    }
 
     @Override public void onResume() {
         if (active || disposed) return;
@@ -625,8 +651,8 @@ final class InsightsScreen implements AppScreen {
 
     private void selected(TextView item, boolean selected) {
         item.setSelected(selected);
-        item.setTextColor(selected ? ui.ink : ui.muted);
-        item.setBackground(ui.ripple(selected ? ui.soft : Color.TRANSPARENT, 12));
+        item.setTextColor(selected ? ui.accent : ui.muted);
+        item.setBackground(ui.ripple(selected ? (ui.swiss() ? ui.accentSoft : ui.soft) : Color.TRANSPARENT, 12));
     }
 
     private void choosePeriod() {

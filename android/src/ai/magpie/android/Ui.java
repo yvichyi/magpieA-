@@ -1,6 +1,7 @@
 package ai.magpie.android;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -16,29 +17,36 @@ final class Ui {
     final Activity a;
     final int bg, card, ink, muted, line, accent, soft, accentSoft;
     final boolean dark;
+    final Appearance appearance;
     final int dialogTheme;
     Ui(Activity activity) {
         a = activity;
         dark = (a.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+        appearance = appearance(a);
         dialogTheme = dark ? android.R.style.Theme_Material_Dialog_Alert : android.R.style.Theme_Material_Light_Dialog_Alert;
-        // Neutral surfaces; hierarchy comes from alignment, spacing and rules.
-        bg = Color.parseColor(dark ? "#11151A" : "#F3F5F7");
-        card = Color.parseColor(dark ? "#181D23" : "#FFFFFF");
-        ink = Color.parseColor(dark ? "#E9EDF2" : "#1A2027");
-        muted = Color.parseColor(dark ? "#A3A3A3" : "#65717C");
-        line = Color.parseColor(dark ? "#333333" : "#DDE3E9");
-        accent = Color.parseColor(dark ? "#E9EDF2" : "#1A2027");
-        soft = Color.parseColor(dark ? "#262626" : "#E9EDF2");
-        accentSoft = Color.parseColor(dark ? "#262626" : "#E9EDF2");
+        Appearance.Palette palette = appearance.palette(dark);
+        bg = palette.bg(); card = palette.card(); ink = palette.ink(); muted = palette.muted();
+        line = palette.line(); accent = palette.accent(); soft = palette.soft(); accentSoft = palette.accentSoft();
         a.getWindow().setStatusBarColor(bg); a.getWindow().setNavigationBarColor(bg);
         a.getWindow().getDecorView().setSystemUiVisibility(dark ? 0 : View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
     }
+    static Appearance appearance(Context context) {
+        return Appearance.fromId(context.getSharedPreferences("host", Context.MODE_PRIVATE)
+                .getString("appearance", null));
+    }
+    static void setAppearance(Context context, Appearance selected) {
+        context.getSharedPreferences("host", Context.MODE_PRIVATE).edit().putString("appearance", selected.id).apply();
+    }
+    boolean swiss() { return appearance == Appearance.SWISS; }
     int dp(float n) { return (int) (n * a.getResources().getDisplayMetrics().density + .5f); }
     LinearLayout column() { LinearLayout v = new LinearLayout(a); v.setOrientation(LinearLayout.VERTICAL); return v; }
     LinearLayout row() { LinearLayout v = new LinearLayout(a); v.setOrientation(LinearLayout.HORIZONTAL); v.setGravity(Gravity.CENTER_VERTICAL); return v; }
     TextView text(String s, float size, int color, boolean bold) {
         TextView v = new TextView(a); v.setText(s); v.setTextSize(Math.max(12,size)); v.setTextColor(color);
-        v.setIncludeFontPadding(false);v.setLineSpacing(dp(4), 1.04f);v.setTypeface(font(false,bold?500:400));
+        v.setIncludeFontPadding(false);
+        v.setLineSpacing(dp(4), 1.04f);
+        v.setTypeface(font(false, bold ? (swiss() && size >= 18 ? 700 : 500) : 400));
+        if (swiss() && size >= 24) v.setLetterSpacing(-.02f);
         return v;
     }
     Typeface font(boolean numeric,int weight){
@@ -50,13 +58,20 @@ final class Ui {
             fonts.put(key,found);return found;
         }
     }
-    TextView digits(String s,float size){TextView v=text(s,size,ink,true);v.setTypeface(font(true,600));v.setFontFeatureSettings("tnum");return v;}
+    TextView digits(String s,float size){TextView v=text(s,size,ink,true);v.setTypeface(font(true,swiss()?700:600));v.setFontFeatureSettings("tnum");return v;}
     LinearLayout section(){LinearLayout v=column();LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.bottomMargin=dp(24);v.setLayoutParams(p);return v;}
     GradientDrawable shape(int color, int radius, boolean border) {
-        GradientDrawable d = new GradientDrawable(); d.setColor(color); d.setCornerRadius(dp(radius));
+        GradientDrawable d = new GradientDrawable(); d.setColor(color); d.setCornerRadius(swiss() ? 0 : dp(radius));
         if (border) d.setStroke(dp(1), line); return d;
     }
+    GradientDrawable field(int color, int radius) {
+        GradientDrawable background = shape(color, radius, false);
+        background.setStroke(dp(1), appearance.palette(dark).outline());
+        return background;
+    }
     RippleDrawable glassControl(boolean primary) {
+        if (swiss()) return new RippleDrawable(ColorStateList.valueOf(primary ? 0x26ffffff : 0x161c1b17),
+                primary ? shape(accent, 0, false) : field(card, 0), shape(Color.WHITE, 0, false));
         if (GlassOptions.solidSurface(a)) return ripple(primary ? accent : soft, 16);
         int[] colors;
         int edge;
@@ -84,7 +99,7 @@ final class Ui {
         int[] disabled = {-android.R.attr.state_enabled};
         b.setTextColor(new ColorStateList(new int[][]{disabled, new int[0]},
                 new int[]{muted, primary ? (dark ? bg : Color.WHITE) : ink}));
-        b.setTypeface(font(false,500)); b.setMinHeight(dp(48)); b.setMinimumHeight(dp(48));
+        b.setTypeface(font(false, swiss() ? 650 : 500)); b.setMinHeight(dp(48)); b.setMinimumHeight(dp(48));
         b.setStateListAnimator(null);b.setIncludeFontPadding(false);b.setPadding(dp(14), dp(6), dp(14), dp(6));
         StateListDrawable material = new StateListDrawable();
         material.addState(disabled, shape(soft, 16, false));

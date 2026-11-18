@@ -102,7 +102,7 @@ final class InsightChart extends View {
             }
             if (value <= 0) continue;
             float barHeight = Math.max(ui.dp(2), (float) (height * (value / maximum)));
-            paint.setColor(i == selected ? ui.ink : ui.muted);
+            paint.setColor(i == selected ? ui.accent : ui.muted);
             canvas.drawRoundRect(center - barWidth / 2, top + height - barHeight,
                     center + barWidth / 2, top + height, 2, 2, paint);
         }

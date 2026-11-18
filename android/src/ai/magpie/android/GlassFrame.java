@@ -3,7 +3,8 @@ package ai.magpie.android;
 import android.app.Activity;
 import android.content.res.Configuration;
 import android.graphics.Canvas;
-import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.view.Gravity;
 import android.view.View;
@@ -23,6 +24,8 @@ final class GlassFrame extends FrameLayout {
     private final GlassPanel panel, toolbar;
     private final int gutter;
     private final boolean dark;
+    private final Appearance appearance;
+    private final Drawable plainBackground, photoBackground;
     private View scene;
     private GlassPolicy.Mode mode = GlassPolicy.Mode.SOLID;
     private Backdrop backdrop;
@@ -32,18 +35,19 @@ final class GlassFrame extends FrameLayout {
         super(activity);
         dark = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
                 == Configuration.UI_MODE_NIGHT_YES;
-        setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR, dark
-                ? new int[]{0xff202e36, 0xff10161b, 0xff21313d}
-                : new int[]{0xffe1ebf2, 0xfff6f8fa, 0xffdce9f0}));
-        gutter = Math.round(16 * getResources().getDisplayMetrics().density);
-        panel = new GlassPanel(activity, false);
+        appearance = Ui.appearance(activity);
+        int background = appearance.palette(dark).bg();
+        plainBackground = new ColorDrawable(background);
+        photoBackground = appearance == Appearance.GLASS ? new ArchitectureBackdrop(activity, background, dark) : plainBackground;
+        gutter = appearance == Appearance.SWISS ? 0 : Math.round(16 * getResources().getDisplayMetrics().density);
+        panel = new GlassPanel(activity, false, appearance);
         panel.setMinimumHeight(Math.round(64 * getResources().getDisplayMetrics().density));
         LayoutParams dockLayout = new LayoutParams(LayoutParams.MATCH_PARENT,
                 LayoutParams.WRAP_CONTENT, Gravity.BOTTOM);
         dockLayout.setMargins(gutter, 0, gutter, gutter);
         addView(panel, dockLayout);
         panel.setVisibility(GONE);
-        toolbar = new GlassPanel(activity, true);
+        toolbar = new GlassPanel(activity, true, appearance);
         toolbar.setClickable(true);
         LayoutParams toolbarLayout = new LayoutParams(LayoutParams.MATCH_PARENT,
                 LayoutParams.WRAP_CONTENT, Gravity.TOP);
@@ -53,7 +57,7 @@ final class GlassFrame extends FrameLayout {
         refreshOptions();
     }
 
-    int topGap() { return Math.round(6 * getResources().getDisplayMetrics().density); }
+    int topGap() { return appearance == Appearance.SWISS ? 0 : Math.round(6 * getResources().getDisplayMetrics().density); }
 
     void setToolbar(View view) {
         toolbar.addView(view, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
@@ -84,7 +88,9 @@ final class GlassFrame extends FrameLayout {
     }
 
     void refreshOptions() {
-        opaque = GlassOptions.solidSurface(getContext());
+        opaque = appearance == Appearance.SWISS || GlassOptions.solidSurface(getContext());
+        Drawable background = opaque ? plainBackground : photoBackground;
+        if (getBackground() != background) setBackground(background);
         GlassPolicy.Mode selected = GlassPolicy.choose(Build.VERSION.SDK_INT, isHardwareAccelerated(),
                 GlassOptions.glassEnabled(getContext()), opaque);
         if (selected != mode) {

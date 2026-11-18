@@ -5,6 +5,8 @@ interface AppScreen {
     View view();
     default void onResume() {}
     default void onPause() {}
+    default Object saveAppearanceState() { return null; }
+    default void restoreAppearanceState(Object state) {}
     default boolean onBack() { return false; }
     default void dispose() { onPause(); }
 }

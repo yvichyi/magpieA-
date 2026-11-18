@@ -41,9 +41,11 @@ public final class MainActivity extends Activity implements ScreenHost {
     private LinearLayout header;
     private String rootId = "connect";
     private CatalogLoad.Scope workspaceScope;
+    private Map<String, Object> retainedAppearanceState;
     private boolean resumed, launchingSettings;
 
     private enum PageMotion { NONE, TAB, PUSH, POP }
+    private record RetainedAppearance(CatalogLoad.Scope scope, Map<String, Object> screens) {}
 
     private static final class Page {
         final AppScreen screen;
@@ -72,7 +74,7 @@ public final class MainActivity extends Activity implements ScreenHost {
         glass = new GlassFrame(this);
         header = ui.row();
         header.setMinimumHeight(ui.dp(60));
-        header.setPadding(ui.dp(14), ui.dp(4), ui.dp(6), ui.dp(4));
+        header.setPadding(ui.dp(ui.swiss() ? 20 : 14), ui.dp(4), ui.dp(6), ui.dp(4));
         content = new FrameLayout(this);
         glass.setScene(content);
         glass.setToolbar(header);
@@ -80,6 +82,8 @@ public final class MainActivity extends Activity implements ScreenHost {
         navigation = new GlassNavigation(ui, this::openRoot);
         setContentView(glass);
         workspaceScope = scope();
+        if (getLastNonConfigurationInstance() instanceof RetainedAppearance previous
+                && previous.scope().matches(workspaceScope)) retainedAppearanceState = previous.screens();
         showRoot(rootId, PageMotion.NONE);
 
         SharedPreferences prefs = getSharedPreferences("host", MODE_PRIVATE);
@@ -92,11 +96,12 @@ public final class MainActivity extends Activity implements ScreenHost {
             prefs.edit().putBoolean("launched", true).apply();
             new HostActions(this, ui, this::refresh).start();
         }
-        if (getIntent().getBooleanExtra("showFunctions", false)) main.post(this::settings);
+        if (state == null && getIntent().getBooleanExtra("showFunctions", false)) main.post(this::settings);
     }
 
     @Override protected void onResume() {
         super.onResume();
+        if (applyAppearance()) return;
         UiMotion.enter(this);
         resumed = true;
         launchingSettings = false;
@@ -125,6 +130,23 @@ public final class MainActivity extends Activity implements ScreenHost {
         super.onSaveInstanceState(state);
     }
 
+    @Override public Object onRetainNonConfigurationInstance() {
+        if (Ui.appearance(this) == ui.appearance) return null;
+        Map<String, Object> screens = new LinkedHashMap<>();
+        if (retainedAppearanceState != null) screens.putAll(retainedAppearanceState);
+        for (Map.Entry<String, Destination> entry : roots.entrySet()) {
+            Object state = entry.getValue().base().saveAppearanceState();
+            if (state != null) screens.put(entry.getKey(), state);
+        }
+        return new RetainedAppearance(workspaceScope, screens);
+    }
+
+    private boolean applyAppearance() {
+        if (Ui.appearance(this) == ui.appearance || destination().detail()) return false;
+        recreate();
+        return true;
+    }
+
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
@@ -146,7 +168,7 @@ public final class MainActivity extends Activity implements ScreenHost {
         if (root.page().screen.onBack()) return;
         if (root.detail()) {
             root.pages.pop().screen.dispose();
-            attach(PageMotion.POP);
+            if (!applyAppearance()) attach(PageMotion.POP);
         } else if (!rootId.equals("connect")) {
             openRoot("connect");
         } else {
@@ -173,6 +195,7 @@ public final class MainActivity extends Activity implements ScreenHost {
         CatalogLoad.Scope current = scope();
         if (current.matches(workspaceScope)) return false;
         disposePages();
+        retainedAppearanceState = null;
         workspaceScope = current;
         showRoot(rootId, PageMotion.NONE);
         return true;
@@ -190,12 +213,16 @@ public final class MainActivity extends Activity implements ScreenHost {
     }
 
     private AppScreen create(String id) {
-        switch (id) {
-            case "home": return new CatalogScreen(this);
-            case "plugins": return new PluginsScreen(this);
-            case "usage": return new InsightsScreen(this);
-            default: return new ConnectScreen(this);
+        AppScreen screen = switch (id) {
+            case "home" -> new CatalogScreen(this);
+            case "plugins" -> new PluginsScreen(this);
+            case "usage" -> new InsightsScreen(this);
+            default -> new ConnectScreen(this);
+        };
+        if (retainedAppearanceState != null && workspaceScope.matches(scope())) {
+            screen.restoreAppearanceState(retainedAppearanceState.remove(id));
         }
+        return screen;
     }
 
     @Override public Activity activity() { return this; }
@@ -214,6 +241,7 @@ public final class MainActivity extends Activity implements ScreenHost {
         UiMotion.stay(this);
         pausePage();
         showRoot(target, PageMotion.TAB);
+        applyAppearance();
     }
 
     private void showRoot(String id, PageMotion motion) {
@@ -275,6 +303,7 @@ public final class MainActivity extends Activity implements ScreenHost {
         } else {
             title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20);
             title.setSingleLine(true);
+            if (ui.swiss()) title.setTypeface(ui.font(true, 700));
         }
         title.setEllipsize(TextUtils.TruncateAt.END);
         ui.grow(header, title);

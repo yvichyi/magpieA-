@@ -19,8 +19,11 @@
   };
   document.documentElement.classList.add('magpie-android');
   document.body.classList.add('magpie-android');
-  window.magpieAndroidVisualOptions = (solid, still) => {
-    document.body.classList.toggle('android-solid', solid);
+  window.magpieAndroidVisualOptions = (solid, still, appearance, night) => {
+    const swiss = appearance === 'swiss';
+    document.body.classList.toggle('android-swiss', swiss);
+    document.documentElement.classList.toggle('android-night', swiss && night === true);
+    document.body.classList.toggle('android-solid', solid || swiss);
     document.body.classList.toggle('android-still', still);
   };
   let announced = '', announcedBridge;

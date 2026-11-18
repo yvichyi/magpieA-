@@ -89,7 +89,7 @@ public final class ToolsActivity extends Activity {
         search.setContentDescription("搜索设置");
         search.setMinimumHeight(ui.dp(48));
         search.setPadding(ui.dp(14), ui.dp(8), ui.dp(14), ui.dp(8));
-        search.setBackground(ui.shape(ui.card, 12, true));
+        search.setBackground(ui.field(ui.card, 12));
         content.addView(search, new LinearLayout.LayoutParams(-1, -2));
 
         scope = workspaceScope();
@@ -120,7 +120,7 @@ public final class ToolsActivity extends Activity {
         back.setLayoutParams(new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
         header.addView(back);
         ui.gap(header, 4);
-        heading.setTypeface(ui.font(false, 500));
+        heading.setTypeface(ui.font(false, ui.swiss() ? 700 : 500));
         heading.setAccessibilityHeading(true);
         ui.grow(header, heading);
         return header;
@@ -201,7 +201,7 @@ public final class ToolsActivity extends Activity {
     private void render() {
         rows.removeAllViews();
         String query = search.getText().toString().trim().toLowerCase(Locale.ROOT);
-        int count = accessibilitySection(query);
+        int count = appearanceSection(query) + accessibilitySection(query);
         count += section("网关与隐私", query, new String[][] {
             {"gateway", "网关与访问密钥", "接入地址、访问密钥和调用配额"},
             {"network", "网络与 LAN 共享", "局域网访问、代理和远程连接配置"},
@@ -231,6 +231,29 @@ public final class ToolsActivity extends Activity {
             ui.space(rows, 8);
             rows.addView(ui.button("清除搜索", false, () -> search.setText("")));
         }
+    }
+
+    private int appearanceSection(String query) {
+        if (!matches(query, "外观", "界面主题 液态玻璃 瑞士风格")) return 0;
+        heading("外观");
+        LinearLayout label = ui.column();
+        label.addView(ui.text("界面主题", 16, ui.ink, true));
+        label.addView(ui.text(ui.appearance.label, 14, ui.muted, false));
+        rows.addView(directoryRow(label, "选择界面主题", this::chooseAppearance));
+        return 1;
+    }
+
+    private void chooseAppearance() {
+        Appearance[] themes = Appearance.values();
+        CharSequence[] labels = new CharSequence[themes.length];
+        for (int i = 0; i < themes.length; i++) labels[i] = themes[i].label;
+        new AlertDialog.Builder(this, ui.dialogTheme).setTitle("界面主题")
+                .setSingleChoiceItems(labels, ui.appearance.ordinal(), (dialog, selected) -> {
+                    dialog.dismiss();
+                    if (themes[selected] == ui.appearance) return;
+                    Ui.setAppearance(this, themes[selected]);
+                    recreate();
+                }).setNegativeButton("取消", null).show();
     }
 
     private int accessibilitySection(String query) {

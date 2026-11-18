@@ -17,17 +17,19 @@ final class GlassPanel extends FrameLayout {
     private final Paint bevel = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final float density;
     private final boolean topSurface;
+    private final Appearance appearance;
     private GlassFrame.Backdrop backdrop;
     private Shader film, readableFilm;
     private boolean dark, solid;
 
-    GlassPanel(Context context, boolean topSurface) {
+    GlassPanel(Context context, boolean topSurface, Appearance appearance) {
         super(context);
         this.topSurface = topSurface;
+        this.appearance = appearance;
         density = getResources().getDisplayMetrics().density;
         setWillNotDraw(false);
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
-        setElevation((topSurface ? 5 : 8) * density);
+        setElevation(appearance == Appearance.SWISS ? 0 : (topSurface ? 5 : 8) * density);
         setOutlineAmbientShadowColor(0x440d1520);
         setOutlineSpotShadowColor(0x660d1520);
         setOutlineProvider(new ViewOutlineProvider() {
@@ -54,6 +56,7 @@ final class GlassPanel extends FrameLayout {
     }
 
     private float radius() {
+        if (appearance == Appearance.SWISS) return 0;
         return Math.min(26 * density, Math.min(getWidth(), getHeight()) * 0.5f);
     }
 
@@ -88,6 +91,15 @@ final class GlassPanel extends FrameLayout {
 
     @Override protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
+        if (appearance == Appearance.SWISS) {
+            Appearance.Palette palette = appearance.palette(dark);
+            fill.setColor(palette.card());
+            canvas.drawRect(0, 0, getWidth(), getHeight(), fill);
+            fill.setColor(palette.line());
+            float edge = topSurface ? getHeight() - density : 0;
+            canvas.drawRect(0, edge, getWidth(), edge + density, fill);
+            return;
+        }
         float radius = radius();
         boolean live = backdrop != null && canvas.isHardwareAccelerated()
                 && backdrop.drawLens(canvas, topSurface, getLeft(), getTop(), getWidth(), getHeight(), radius);

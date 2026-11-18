@@ -41,6 +41,8 @@ final class ConnectScreen implements AppScreen {
     private String result = "";
     private boolean successfulTest;
 
+    private record AppearanceState(CatalogData catalog, String result, boolean successful, int scroll) {}
+
     private final Runnable tick = new Runnable() {
         @Override public void run() {
             if (!active) return;
@@ -92,6 +94,21 @@ final class ConnectScreen implements AppScreen {
     }
 
     @Override public View view() { return scroll; }
+
+    @Override public Object saveAppearanceState() {
+        if (loadedScope == null || !loadedScope.matches(new Scope(activity))) return null;
+        return new AppearanceState(catalog, result, successfulTest, scroll.getScrollY());
+    }
+
+    @Override public void restoreAppearanceState(Object state) {
+        if (!(state instanceof AppearanceState saved)) return;
+        catalog = saved.catalog();
+        loadedScope = new Scope(activity);
+        result = saved.result();
+        successfulTest = saved.successful();
+        render();
+        scroll.post(() -> scroll.scrollTo(0, saved.scroll()));
+    }
 
     @Override public void onResume() {
         active = true;
