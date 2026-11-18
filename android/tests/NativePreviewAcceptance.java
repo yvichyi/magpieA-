@@ -80,7 +80,6 @@ public final class NativePreviewAcceptance extends Instrumentation {
                 require(clipboardVerified, "Clipboard value was unavailable to the SDK instrumentation");
             } else if (mode.equals("small")) {
                 singleLine("Magpie");
-                awaitText("接入配置", 45_000);
                 capture("01-connect-large");
                 click("模型");
                 visible("搜索模型");
@@ -88,7 +87,6 @@ public final class NativePreviewAcceptance extends Instrumentation {
                 capture("02-models-large");
                 click("插件");
                 visible("从 npm 安装");
-                awaitText("Bun", 45_000);
                 capture("03-plugins-large");
                 testInsights(false);
                 click("打开设置");

@@ -1,0 +1,19 @@
+{
+  "outputs": [
+    {
+      "file": "Magpie-Android-2.0.0-preview1-arm64.apk",
+      "ABI": "arm64-v8a",
+      "bytes": 92198227,
+      "sha256": "47a8dfd44f353fbc305ec9206159ca9154c6875468b8514f693b4420a64fd328",
+      "signer": "6b34c271e9facee56a928ffe2d376d2e5c7c6ddb0cc35e995c9b9079428852f8"
+    },
+    {
+      "file": "Magpie-Android-2.0.0-preview1-x86_64.apk",
+      "ABI": "x86_64",
+      "bytes": 96081229,
+      "sha256": "f40bc9a0c0d9da95ed91c71a0e5bb381204565b51baf255818351e605eb517c5",
+      "signer": "6b34c271e9facee56a928ffe2d376d2e5c7c6ddb0cc35e995c9b9079428852f8"
+    }
+  ],
+  "sameDex": "f4c57c3e4823a317c3f8638cfc1d04ebd689487de2d4fef7276a278444202eb3"
+}

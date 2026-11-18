@@ -1,17 +1,17 @@
 # Magpie Android
 
-Android **1.12.0 / code13**，内置 Magpie 核心 **v0.1.4342**。独立安卓移植版。
+Magpie 的独立安卓移植版。当前为 **2.0.0-preview1**，内置 Magpie 核心 **v0.1.4342**。
 
-**[下载手机 ARM64 APK](https://raw.githubusercontent.com/yvichyi/magpieA-/apk-1.12.0/Magpie-Android-1.12.0-arm64.apk)** · [全部安装包与校验文件](https://github.com/yvichyi/magpieA-/releases/latest)
+**[下载手机 ARM64 APK](https://raw.githubusercontent.com/yvichyi/magpieA-/21aab99b74e35d5b06eaf989b89a88d8bf68eb3c/Magpie-Android-2.0.0-preview1-arm64.apk)** · [全部安装包与校验文件](https://github.com/yvichyi/magpieA-/releases/tag/v2.0.0-preview1)
 
-[安装和使用](android/README.zh-CN.md) · [实际验证范围与限制](android/VERIFICATION.md)
+[安装和使用](android/README.zh-CN.md) · [页面实拍](android/docs/preview-2.0/README.md) · [实际验证范围](android/docs/preview-2.0/VERIFICATION.md)
 
-本轮新增原生近12周统计日历，支持调用、Token、费用与按日查看；修复重试统计、旧安卓编码接口和连接失败页返回。已实测同证书覆盖升级、插件链路、三种协议、小屏与大字体。实体机及部分内嵌管理页仍待完整验收，原有软件WebView限制未确认消除。
+接入、模型、插件和用量各有底栏入口。接入可生成并测试三种兼容协议的配置。用量包括趋势、Token 构成、分布、月历和请求明细，可按筛选条件导出 CSV。设置可搜索，并提供降低透明度和减少动效选项。
 
 ## 完整源码与构建
 
 ```sh
-git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/yvichyi/magpieA-.git
+git clone --branch v2.0.0-preview1 --depth 1 --recurse-submodules --shallow-submodules https://github.com/yvichyi/magpieA-.git
 cd magpieA-
 bash android/build.sh
 ```
@@ -22,6 +22,6 @@ bash android/build.sh
 
 GitHub Actions 的 Android APK 工作流支持两个架构，需按说明配置签名Secret。签名私钥不在源码中；本次发布提供已完成本地签名和验证的安装包下载链接。
 
-![统计日历](android/docs/screenshots/usage-calendar.png)
+[<img src="android/docs/preview-2.0/normal/04-connection.png" width="220" alt="接入配置">](android/docs/preview-2.0/README.md) [<img src="android/docs/preview-2.0/normal/14-usage-calendar.png" width="220" alt="用量日历">](android/docs/preview-2.0/README.md)
 
 原项目及许可：[yetone/magpie](https://github.com/yetone/magpie)、[LICENSE](LICENSE)、[THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES)。

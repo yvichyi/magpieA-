@@ -1,13 +1,13 @@
-# Magpie Android 1.12.0
+# Magpie Android 2.0 预览 1
 
-基于 [yetone/magpie](https://github.com/yetone/magpie) 的独立安卓移植版，采用原版 Go 网关、原版响应式管理界面和新增的中文 Android 控制中心。不是上游官方发行版。
+采用 Magpie Go 网关和原生安卓界面的独立移植版。[上游项目](https://github.com/yetone/magpie) · [页面实拍](docs/preview-2.0/README.md) · [验证记录](docs/preview-2.0/VERIFICATION.md)
 
 ## 获取完整源码
 
 原版核心固定为 `magpie-core` Git子模块，提交 `593517bf00bc8b0ab00c8ddef3f4d31b310a71b8`（v0.1.4342）。使用以下方式取得包括核心在内的全部源码：
 
 ```sh
-git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/yvichyi/magpieA-.git
+git clone --branch v2.0.0-preview1 --depth 1 --recurse-submodules --shallow-submodules https://github.com/yvichyi/magpieA-.git
 cd magpieA-
 ```
 
@@ -17,17 +17,17 @@ cd magpieA-
 
 ## 安装
 
-普通 ARM64 手机安装 `Magpie-Android-1.12.0-arm64.apk`；x86_64 模拟器或设备安装 `Magpie-Android-1.12.0-x86_64.apk`。本次分别提供 ARM64 手机和 x86_64 模拟器安装包；不支持仅有 32 位 ARM 的设备。最低 Android 9.0/API 28，目标 API 35。请使用更新的 Android System WebView/Chrome；原版界面使用现代 JavaScript，过旧的 WebView 可能显示空白。
+ARM64 手机选择 `arm64.apk`，x86_64 模拟器或设备选择 `x86_64.apk`。最低 Android 9.0（API 28）。同签名的 1.12 可直接覆盖升级。高级管理页面需要较新的 Android System WebView 或 Chrome。[安装包与校验文件](https://github.com/yvichyi/magpieA-/releases/tag/v2.0.0-preview1)
 
 打开应用后，本机网关自动启动。Android 13 及以上会请求通知权限，以便显示运行状态和停止入口。第一次启动会初始化配置和模型目录；状态变为「运行中」后进入管理界面。无需电脑、Termux 或 root 即可使用 API Key 网关功能。
 
 ## 第一次使用
 
-1. 在「模型」页点「＋」，直接进入原生添加页；选择接口协议，粘贴服务商 Base URL 和自己的 API Key。无需密钥的自托管服务可留空 Key；名称不填时使用域名。
+1. 在「模型」点「添加服务商」，选择接口协议并填写服务商 Base URL 和 API Key。无需密钥的自托管服务可留空 Key。
 2. 点「读取模型」，在真实返回的列表中筛选、勾选。默认全选；也可不读取，直接填写已知的模型 ID。读取完成后会收起键盘并显示选择列表，预览不会保存服务商。
-3. 点「保存并查看模型」，确认接口保存后自动返回模型页，定位刚添加服务商中的已选可用模型。点上方「显示全部」恢复完整列表。重复地址和密钥不会覆盖已有配置。
-4. 点模型行打开接入面板，分别复制模型、Base URL、API Key。支持 OpenAI 兼容 JSON 的客户端也可复制配置；这个 JSON 始终使用 OpenAI 协议。局域网和远程接入请在网关中配置实际地址与访问密钥。
-5. 订阅登录、预设与更多参数可从「工具 → 订阅登录与高级添加」直达，也可使用添加页里的「改用订阅 / 高级添加」；现有服务商的「编辑」保留高级管理。模型分组在「分组」页建立；请求分配日志在「工具 → 请求路由」。
+3. 点「保存并查看模型」返回模型目录。选择模型行查看模型详情，点「查看全部」恢复完整列表。
+4. 在「接入」选择 OpenAI、Anthropic 或 Gemini，以及要调用的模型或分组。可分别复制地址、模型标识和密钥，或复制整份配置。点「测试调用」即可查看实际响应。
+5. 在「模型 → 分组」建立模型分组。高级管理和订阅登录位于右上角「设置」。用量明细和 CSV 导出位于「用量 → 请求」。
 
 应用不附赠厂商账号、密钥或付费额度。以下只是初始默认接入值，实际地址以模型接入面板为准：
 
@@ -199,7 +199,7 @@ export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk/27.2.12479018"
 bash android/build.sh
 ```
 
-默认输出位于 `dist/Magpie-Android-1.12.0-arm64.apk`；设置 `TARGET_ABI=x86_64` 输出对应模拟器包。默认每次调用 Go 编译，使用 Go 自己的增量缓存，生成 ARM64 包。Android 核心必须启用 CGO，以使用安卓系统域名解析；ARM64 同时按 16 KB ELF 页面对齐。需要 x86_64 时，设置 `TARGET_ABI=x86_64`。每个 APK 只携带一个架构的核心与 Bun，安装时由系统放入只读原生代码目录。macOS 构建还需设置匹配的 `NDK_HOST_TAG`。
+默认输出位于 `dist/Magpie-Android-2.0.0-preview1-arm64.apk`。使用 `TARGET_ABI=x86_64` 构建模拟器包。Android 核心启用 CGO 以使用系统域名解析，ARM64 使用 16 KB ELF 页面对齐。每个 APK 携带对应架构的核心和 Bun。macOS 构建还需设置匹配的 `NDK_HOST_TAG`。
 
 只有在确认核心源码未改动、只修改 Android 宿主时，才可明确指定 `USE_PREBUILT_CORE=1` 复用 `android/build/lib/` 下已有的核心。正常构建不会默默跳过核心编译。
 
