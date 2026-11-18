@@ -105,7 +105,7 @@ final class PluginsScreen implements AppScreen {
         this.host = host;
         ui = host.ui();
         activity = host.activity();
-        scroll = new ScrollView(activity);
+        scroll = new InsetScrollView(activity);
         scroll.setFillViewport(true);
         scroll.setVerticalScrollBarEnabled(false);
         body = ui.column();

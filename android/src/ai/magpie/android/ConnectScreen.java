@@ -69,7 +69,7 @@ final class ConnectScreen implements AppScreen {
         preferences = activity.getSharedPreferences("connection", 0);
         protocol = Math.max(0, Math.min(PROTOCOLS.length - 1, preferences.getInt(preferenceKey("protocol"), 0)));
         reference = preferences.getString(preferenceKey("target"), "");
-        scroll = new ScrollView(activity);
+        scroll = new InsetScrollView(activity);
         scroll.setFillViewport(true);
         scroll.setVerticalScrollBarEnabled(false);
         body = ui.column();

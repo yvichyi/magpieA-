@@ -15,7 +15,7 @@ final class CatalogViews {
     private CatalogViews() {}
 
     static ScrollView scroll(Ui ui) {
-        ScrollView scroll = new ScrollView(ui.a);
+        ScrollView scroll = new InsetScrollView(ui.a);
         scroll.setFillViewport(true);
         scroll.setVerticalScrollBarEnabled(false);
         scroll.setFocusableInTouchMode(true);

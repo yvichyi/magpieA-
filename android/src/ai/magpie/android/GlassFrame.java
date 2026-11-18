@@ -22,14 +22,19 @@ final class GlassFrame extends FrameLayout {
 
     private final GlassPanel panel, toolbar;
     private final int gutter;
+    private final boolean dark;
     private View scene;
     private GlassPolicy.Mode mode = GlassPolicy.Mode.SOLID;
     private Backdrop backdrop;
-    private int sceneColor;
     private boolean imeVisible, opaque;
 
     GlassFrame(Activity activity) {
         super(activity);
+        dark = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
+                == Configuration.UI_MODE_NIGHT_YES;
+        setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR, dark
+                ? new int[]{0xff202e36, 0xff10161b, 0xff21313d}
+                : new int[]{0xffe1ebf2, 0xfff6f8fa, 0xffdce9f0}));
         gutter = Math.round(16 * getResources().getDisplayMetrics().density);
         panel = new GlassPanel(activity, false);
         panel.setMinimumHeight(Math.round(64 * getResources().getDisplayMetrics().density));
@@ -39,6 +44,7 @@ final class GlassFrame extends FrameLayout {
         addView(panel, dockLayout);
         panel.setVisibility(GONE);
         toolbar = new GlassPanel(activity, true);
+        toolbar.setClickable(true);
         LayoutParams toolbarLayout = new LayoutParams(LayoutParams.MATCH_PARENT,
                 LayoutParams.WRAP_CONTENT, Gravity.TOP);
         toolbarLayout.setMargins(gutter, topGap(), gutter, 0);
@@ -78,15 +84,6 @@ final class GlassFrame extends FrameLayout {
     }
 
     void refreshOptions() {
-        boolean dark = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
-                == Configuration.UI_MODE_NIGHT_YES;
-        int base = dark ? 0xff17191c : 0xfff9fafb;
-        if (sceneColor != base) {
-            sceneColor = base;
-            setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR, dark
-                    ? new int[]{0xff202e36, 0xff10161b, 0xff21313d}
-                    : new int[]{0xffe1ebf2, 0xfff6f8fa, 0xffdce9f0}));
-        }
         opaque = GlassOptions.solidSurface(getContext());
         GlassPolicy.Mode selected = GlassPolicy.choose(Build.VERSION.SDK_INT, isHardwareAccelerated(),
                 GlassOptions.glassEnabled(getContext()), opaque);

@@ -100,7 +100,9 @@ final class GlassNavigation extends LinearLayout {
         super.onDraw(canvas);
         if (selected < 0) return;
         float slot = (getWidth() - getPaddingLeft() - getPaddingRight()) / (float) icons.length;
-        float center = getPaddingLeft() + (position + .5f) * slot;
+        float visualPosition = getLayoutDirection() == View.LAYOUT_DIRECTION_RTL
+                ? icons.length - 1 - position : position;
+        float center = getPaddingLeft() + (visualPosition + .5f) * slot;
         float half = (slot * (1f + stretch) - ui.dp(4)) / 2f;
         float top = getPaddingTop();
         float bottom = getHeight() - getPaddingBottom();

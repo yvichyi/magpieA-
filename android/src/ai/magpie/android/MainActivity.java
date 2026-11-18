@@ -16,7 +16,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
 import android.widget.TextView;
 
 import java.util.ArrayDeque;
@@ -242,8 +241,9 @@ public final class MainActivity extends Activity implements ScreenHost {
         glass.setDock(root.detail() ? null : navigation);
         navigation.select(rootId, motion == PageMotion.TAB && !root.detail());
         updatePageInset();
+        int direction = page.getLayoutDirection() == View.LAYOUT_DIRECTION_RTL ? -1 : 1;
         if (motion != PageMotion.NONE) UiMotion.page(page,
-                motion == PageMotion.TAB ? 0 : ui.dp(30) * (motion == PageMotion.POP ? -1 : 1),
+                motion == PageMotion.TAB ? 0 : ui.dp(30) * direction * (motion == PageMotion.POP ? -1 : 1),
                 motion == PageMotion.TAB ? ui.dp(14) : 0);
         if (resumed) root.page().screen.onResume();
     }
@@ -252,11 +252,9 @@ public final class MainActivity extends Activity implements ScreenHost {
         View page = content.getChildAt(0);
         if (page == null) return;
         int inset = Math.max(header.getMinimumHeight(), header.getHeight()) + glass.topGap() + ui.dp(3);
-        if (page instanceof ScrollView) {
+        if (page instanceof InsetScrollView) {
             content.setPadding(0, 0, 0, 0);
-            ((ScrollView) page).setClipToPadding(false);
-            if (page.getPaddingTop() != inset) page.setPadding(page.getPaddingLeft(), inset,
-                    page.getPaddingRight(), page.getPaddingBottom());
+            ((InsetScrollView) page).setToolbarInset(inset);
         } else if (content.getPaddingTop() != inset) {
             content.setPadding(0, inset, 0, 0);
         }

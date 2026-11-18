@@ -102,7 +102,7 @@ final class InsightsScreen implements AppScreen {
         this.host = host;
         ui = host.ui();
         reads.allowCoreThreadTimeOut(true);
-        scroll = new ScrollView(ui.a);
+        scroll = new InsetScrollView(ui.a);
         scroll.setSaveEnabled(false);
         LinearLayout content = InsightsViews.content(ui, scroll);
         LinearLayout sections = ui.row();
