@@ -34,6 +34,7 @@ public final class NativePreviewAcceptance extends Instrumentation {
     private MainActivity home;
     private CoreApi core;
     private String reference;
+    private boolean clipboardVerified;
 
     @Override public void onCreate(Bundle args) {
         super.onCreate(args);
@@ -74,6 +75,7 @@ public final class NativePreviewAcceptance extends Instrumentation {
                 testPlugin();
                 testInsights(true);
                 testSettings();
+                require(clipboardVerified, "Clipboard value was unavailable to the SDK instrumentation");
             } else if (mode.equals("small")) {
                 capture("01-connect-large");
                 click("模型");
@@ -108,7 +110,8 @@ public final class NativePreviewAcceptance extends Instrumentation {
         capture("01-provider-setup");
         fill("服务商地址", fixture + "/v1");
         fill("API Key", "local-fixture");
-        fill("名称（可选）", "预览测试来源");
+        String sourceName = "预览测试来源 " + Long.toString(System.currentTimeMillis(), 36);
+        fill("名称（可选）", sourceName);
         click("读取模型");
         awaitText("preview-echo", 60_000);
         click("全选");
@@ -117,7 +120,7 @@ public final class NativePreviewAcceptance extends Instrumentation {
         JSONArray sources = new JSONObject(core.get("/api/providers")).getJSONArray("providers");
         for (int i = 0; i < sources.length(); i++) {
             JSONObject source = sources.getJSONObject(i);
-            if (source.optString("name").equals("预览测试来源")) reference = source.getString("id") + "/preview-echo";
+            if (source.optString("name").equals(sourceName)) reference = source.getString("id") + "/preview-echo";
         }
         require(reference != null, "Native form did not save fixture provider");
         awaitText(reference, 40_000);
@@ -131,20 +134,41 @@ public final class NativePreviewAcceptance extends Instrumentation {
     }
 
     private void testConnection() throws Exception {
+        click("OpenAI");
         capture("04-connection");
         click("复制接入配置");
-        ui(() -> {
-            ClipboardManager clipboard = target.getSystemService(ClipboardManager.class);
-            ClipData data = clipboard.getPrimaryClip();
-            require(data != null && data.getItemAt(0).coerceToText(target).toString().contains(reference), "Config did not copy exact model ID");
-        });
+        try {
+            await(() -> {
+                ClipboardManager clipboard = home.getSystemService(ClipboardManager.class);
+                ClipData data = clipboard.getPrimaryClip();
+                if (data == null) return false;
+                try {
+                    JSONObject config = new JSONObject(data.getItemAt(0).coerceToText(home).toString());
+                    return config.optString("model").equals(reference) && config.optString("api_key").equals("magpie")
+                            && config.optString("base_url").endsWith("/v1");
+                } catch (org.json.JSONException invalid) {
+                    return false;
+                }
+            }, 6000, "SDK clipboard read unavailable after paste");
+            clipboardVerified = true;
+        } catch (AssertionError unavailable) {
+            AtomicReference<String> trace = new AtomicReference<>("");
+            ui(() -> {
+                ClipboardManager cb = home.getSystemService(ClipboardManager.class);
+                ClipData data = cb.getPrimaryClip();
+                CharSequence value = data == null ? "" : data.getItemAt(0).coerceToText(home);
+                trace.set("present=" + (data != null) + " size=" + value.length() + " focused=" + decor().hasWindowFocus()
+                        + " emittedConfig=" + value.toString().contains("base_url"));
+            });
+            stage("CLIPBOARD_READ_CHECK " + trace.get());
+        }
         for (String protocol : new String[]{"OpenAI", "Anthropic", "Gemini"}) {
             if (!protocol.equals("OpenAI")) click(protocol);
             click("测试调用");
             awaitText(protocol + " 已收到响应", 55_000);
         }
         capture("05-connection-test");
-        stage("THREE_ACTUAL_PROTOCOLS_AND_CLIPBOARD");
+        stage("THREE_ACTUAL_PROTOCOLS clipboard=" + clipboardVerified);
     }
 
     private void createGroup() throws Exception {
@@ -429,7 +453,13 @@ public final class NativePreviewAcceptance extends Instrumentation {
         sendStatus(1, trace);
     }
 
-    private void ui(Runnable action) { runOnMainSync(action); }
+    private void ui(Runnable action) {
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        runOnMainSync(() -> {
+            try { action.run(); } catch (Throwable error) { failure.set(error); }
+        });
+        if (failure.get() != null) throw new AssertionError(failure.get());
+    }
 
     private void await(BooleanSupplier condition, long timeout, String failure) throws Exception {
         long end = SystemClock.elapsedRealtime() + timeout;

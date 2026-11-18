@@ -122,9 +122,11 @@ final class ConnectScreen implements AppScreen {
     private String preferenceKey(String name) { return name + ":" + AppNavigation.workspace(activity); }
 
     private void updateStatus() {
-        String label = AppNavigation.remote(activity)
-                ? catalog != null && !readFailed ? "远程工作空间 · 管理端已连接" : "远程工作空间"
-                : "本机网关 · " + GatewayService.state;
+        String label;
+        if (AppNavigation.remote(activity)) label = catalog != null && !readFailed
+                ? "远程工作空间 · 管理端已连接" : "远程工作空间";
+        else if (catalog != null && Boolean.FALSE.equals(catalog.snapshot.gatewayRunning)) label = "本机管理端已就绪 · 网关未运行";
+        else label = "本机网关 · " + GatewayService.state;
         if (!label.contentEquals(status.getText())) status.setText(label);
     }
 
@@ -222,9 +224,7 @@ final class ConnectScreen implements AppScreen {
         if (readFailed) configuration.addView(ui.text("目录更新失败，显示上次读取结果。", 13, ui.muted, false));
         if (target == null) return;
 
-        String gateway = remote ? AppNavigation.origin(activity) : catalog.snapshot.gatewayUrl;
-        if (gateway.isEmpty()) gateway = AppNavigation.origin(activity);
-        String origin = gateway;
+        String origin = catalog.snapshot.connectionAddress(remote);
         boolean local = !remote && !catalog.snapshot.onNetwork && ConnectionSheet.loopback(origin);
         String base = ConnectionSheet.base(origin, PROTOCOLS[protocol]);
         ui.space(configuration, 20);
@@ -233,14 +233,17 @@ final class ConnectScreen implements AppScreen {
         configuration.addView(section);
         ui.space(configuration, 6);
         ui.rule(configuration, 0);
-        field("Base URL", base, "复制 Base URL", () -> copyCurrent(base));
+        if (origin.isEmpty()) field("Base URL", "在网关设置中确认接入地址", "确认接入地址", () -> host.advanced("gateway"));
+        else field("Base URL", base, "复制 Base URL", () -> copyCurrent(base));
         field("模型标识", reference, "复制模型标识", () -> copyCurrent(reference));
         if (local) field("API Key · 本机占位", "magpie", "复制 API Key", () -> copyCurrent("magpie"));
         else field("API Key", "在网关中选择模型访问密钥", "网关与访问权限", () -> host.advanced("gateway"));
 
         ui.space(configuration, 12);
-        Button copy = ui.button(local ? "复制接入配置" : "复制地址与模型", true, () -> {
+        String copyLabel = local ? "复制接入配置" : origin.isEmpty() ? "复制模型标识" : "复制地址与模型";
+        Button copy = ui.button(copyLabel, true, () -> {
             if (local && protocol == 0) copyCurrent(ClientConfig.openAI(origin, reference));
+            else if (origin.isEmpty()) copyCurrent(reference);
             else copyCurrent("Base URL: " + base + "\n模型: " + reference + (local ? "\nAPI Key: magpie" : ""));
         });
         Button test = ui.button(testing ? "正在测试…" : "测试调用", false, () -> {
@@ -249,7 +252,7 @@ final class ConnectScreen implements AppScreen {
         });
         test.setText(local ? (testing ? "正在测试…" : "测试调用") : "访问密钥");
         copy.setEnabled(!readFailed);
-        test.setEnabled(!testing && !readFailed);
+        test.setEnabled(!testing && !readFailed && (!local || !Boolean.FALSE.equals(catalog.snapshot.gatewayRunning)));
         configuration.addView(new AdaptivePair(ui, copy, test, 8));
         ui.space(configuration, 8);
         configuration.addView(ui.text(local ? "测试发送一条短消息，并计入用量。" : "远程和局域网接入使用模型访问密钥。", 13, ui.muted, false));

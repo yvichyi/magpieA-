@@ -7,9 +7,18 @@ import org.json.*;
 final class WorkspaceSnapshot {
     final List<Provider> providers;
     final List<Group> groups;
-    final String gatewayUrl;
+    final String gatewayUrl, publicGatewayUrl;
     final boolean onNetwork;
-    private WorkspaceSnapshot(List<Provider> providers,List<Group> groups,String gatewayUrl,boolean onNetwork){this.onNetwork=onNetwork;this.gatewayUrl=gatewayUrl;this.providers=Collections.unmodifiableList(providers);this.groups=Collections.unmodifiableList(groups);}
+    final Boolean gatewayRunning;
+    private WorkspaceSnapshot(List<Provider> providers,List<Group> groups,JSONObject gateway){
+        this.providers=Collections.unmodifiableList(providers);
+        this.groups=Collections.unmodifiableList(groups);
+        gatewayUrl=gateway==null?"":gateway.optString("url", "");
+        publicGatewayUrl=gateway==null?"":gateway.optString("publicURL", "");
+        onNetwork=gateway!=null&&gateway.optBoolean("onNetwork");
+        Object running=gateway==null?null:gateway.opt("running");
+        gatewayRunning=running instanceof Boolean?(Boolean)running:null;
+    }
     static WorkspaceSnapshot parse(String providerJson,String groupJson)throws JSONException{
         List<Provider> providers=new ArrayList<>();List<Group> groups=new ArrayList<>();
         JSONArray ps=array(new JSONObject(providerJson),"providers"),gs=array(new JSONObject(groupJson),"groups");
@@ -22,13 +31,23 @@ final class WorkspaceSnapshot {
             JSONObject g=gs.getJSONObject(i);groups.add(new Group(g.getString("id"),g.getString("ref"),g.optString("name",""),g.optString("routing",""),strings(array(g,"members")),g.has("matched")?strings(array(g,"matched")):Collections.emptyList()));
         }
         JSONObject gateway=new JSONObject(providerJson).optJSONObject("gateway");
-        return new WorkspaceSnapshot(providers,groups,gateway==null?"":gateway.optString("url",""),gateway!=null&&gateway.optBoolean("onNetwork"));
+        return new WorkspaceSnapshot(providers,groups,gateway);
+    }
+    String connectionAddress(boolean remote){
+        String address=remote?publicGatewayUrl:gatewayUrl;
+        try {
+            String valid=CoreConfig.remote(address);
+            String host=java.net.URI.create(valid).getHost();
+            if("0.0.0.0".equals(host)||"[::]".equals(host))return "";
+            return valid;
+        } catch(IllegalArgumentException invalid){return "";}
     }
     private static JSONArray array(JSONObject o,String key)throws JSONException{if(!o.has(key))throw new JSONException("Missing "+key);return o.isNull(key)?new JSONArray():o.getJSONArray(key);}
     private static List<String> strings(JSONArray a)throws JSONException{List<String> out=new ArrayList<>();for(int i=0;i<a.length();i++)out.add(a.getString(i));return Collections.unmodifiableList(out);}
     private static boolean contains(String value,String query){return value.toLowerCase(Locale.ROOT).contains(query.trim().toLowerCase(Locale.ROOT));}
     boolean sameContent(WorkspaceSnapshot other){
-        if(other==null||onNetwork!=other.onNetwork||!gatewayUrl.equals(other.gatewayUrl)||providers.size()!=other.providers.size()||groups.size()!=other.groups.size())return false;
+        if(other==null||onNetwork!=other.onNetwork||!gatewayUrl.equals(other.gatewayUrl)||!publicGatewayUrl.equals(other.publicGatewayUrl)
+                ||!Objects.equals(gatewayRunning,other.gatewayRunning)||providers.size()!=other.providers.size()||groups.size()!=other.groups.size())return false;
         for(int i=0;i<providers.size();i++){
             Provider a=providers.get(i),b=other.providers.get(i);
             if(!a.id.equals(b.id)||!a.name.equals(b.name)||a.off!=b.off||a.models.size()!=b.models.size())return false;

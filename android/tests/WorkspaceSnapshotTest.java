@@ -5,6 +5,12 @@ public final class WorkspaceSnapshotTest {
         String groups="{\"groups\":[{\"id\":\"fallback\",\"ref\":\"auto/fallback\",\"name\":\"备用组\",\"routing\":\"order\",\"members\":[\"relay/alpha\",\"relay/beta\"],\"matched\":[\"relay/gamma\"]}]}";
         WorkspaceSnapshot s=WorkspaceSnapshot.parse(providers,groups);
         check(s.sameContent(WorkspaceSnapshot.parse(providers,groups)),"Unchanged catalog cannot retain its Views");
+        String exposed=providers.replace("{\"providers\"","{\"gateway\":{\"url\":\"http://127.0.0.1:3425\",\"publicURL\":\"https://api.example.org\",\"running\":false},\"providers\"");
+        WorkspaceSnapshot advertised=WorkspaceSnapshot.parse(exposed,groups);
+        check(advertised.connectionAddress(false).equals("http://127.0.0.1:3425"),"Local gateway endpoint lost");
+        check(advertised.connectionAddress(true).equals("https://api.example.org"),"Remote uses the advertised API endpoint");
+        check(WorkspaceSnapshot.parse(exposed.replace("https://api.example.org","http://0.0.0.0:3425"),groups).connectionAddress(true).isEmpty(),"Bind address is not a client endpoint");
+        check(s.connectionAddress(true).isEmpty()&&Boolean.FALSE.equals(advertised.gatewayRunning),"Unsupplied address and stopped gateway remain distinct");
         check(!s.sameContent(WorkspaceSnapshot.parse(providers.replace("Alpha 模型","改名模型"),groups)),"Renamed model was not detected");
         check(!s.sameContent(WorkspaceSnapshot.parse(providers,groups.replace("relay/gamma","relay/delta"))),"Changed route members were not detected");
         check(WorkspaceSnapshot.parse(providers.replace("{\"providers\"","{\"gateway\":{\"url\":\"http://127.0.0.1:41237\",\"onNetwork\":true},\"providers\""),groups).onNetwork,"Network-bound gateway flag was dropped");

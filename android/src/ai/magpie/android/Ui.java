@@ -112,7 +112,7 @@ final class Ui {
             String id=NavigationModel.ROOTS[i];boolean on=id.equals(current);
             LinearLayout cell=column();cell.setGravity(Gravity.CENTER);cell.setPadding(dp(4),dp(5),dp(4),dp(5));cell.setMinimumHeight(dp(54));cell.setContentDescription(NavigationModel.LABELS[i]);cell.setSelected(on);
             cell.setBackground(ripple(on?(dark?0x30FFFFFF:0x1117222E):Color.TRANSPARENT,26));
-            cell.addView(new LineIcon(a,id.equals("connect")?"plug":id.equals("home")?"providers":id,on?ink:muted),new LinearLayout.LayoutParams(dp(21),dp(21)));
+            cell.addView(new LineIcon(a,id.equals("connect")?"network":id.equals("home")?"providers":id,on?ink:muted),new LinearLayout.LayoutParams(dp(21),dp(21)));
             space(cell,3);TextView label=text(NavigationModel.LABELS[i],12,on?ink:muted,on);label.setGravity(Gravity.CENTER);cell.addView(label);cell.setOnClickListener(v->action.accept(id));row.addView(cell,new LinearLayout.LayoutParams(0,-2,1));
         }
         row.setMinimumHeight(dp(64));return row;
