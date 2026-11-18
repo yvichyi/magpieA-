@@ -1,21 +1,14 @@
 package ai.magpie.android;
 import java.util.*;
-
 public final class NavigationModelTest {
-    private static void same(String expected,String actual,String why){if(!expected.equals(actual))throw new AssertionError(why+": expected "+expected+", got "+actual);}
-    public static void main(String[] args){
-        same("groups",NavigationModel.section("groups"),"Model groups must keep their own primary destination");
-        same("tools",NavigationModel.section("routing"),"Request routing must not masquerade as model groups");
-        same("home",NavigationModel.section("providers"),"Provider editing belongs to models");
-        for(String page:new String[]{"library","settings","gateway","masking","agents","sessions","plugin-example"})same("tools",NavigationModel.section(page),"Advanced pages use the same Tools destination");
-        same("groups",NavigationModel.parent("groups"),"Group editor returns to native groups");
-        same("home",NavigationModel.parent("providers"),"Provider editor returns to models");
-        same("tools",NavigationModel.parent("settings"),"Settings returns to Tools, not an arbitrary caller");
-        same("home",NavigationModel.parent("plugins"),"Primary plugin page returns to models");
-        same("usage",NavigationModel.parent("usage"),"Request ledger returns to the native overview");
-        same("模型分组",NavigationModel.title("groups"),"Groups and rules have different user-facing names");
-        same("请求路由",NavigationModel.title("routing"),"Request routing title is explicit");
-        if(new HashSet<>(Arrays.asList(NavigationModel.ROOTS)).size()!=5)throw new AssertionError("Primary destinations must be unique");
-        System.out.println("PASS stable five roots, explicit group/request trace distinction and deterministic parents");
-    }
+ private static void same(String e,String a,String why){if(!e.equals(a))throw new AssertionError(why+": expected "+e+", got "+a);}
+ public static void main(String[]args){
+  if(!Arrays.equals(NavigationModel.ROOTS,new String[]{"connect","home","plugins","usage"}))throw new AssertionError("Four task roots missing");
+  for(String page:new String[]{"home","groups","providers","routing"})same("home",NavigationModel.section(page),"Model object context");
+  for(String page:new String[]{"plugins","library","agents","sessions","plugin-example"})same("plugins",NavigationModel.section(page),"Plugin-owned details");
+  for(String page:new String[]{"connect","gateway","settings","masking","tools"})same("connect",NavigationModel.section(page),"Global setup has a stable return");
+  same("usage",NavigationModel.parent("usage"),"Ledger parent");same("home",NavigationModel.parent("groups"),"Groups within models");same("plugins",NavigationModel.parent("plugins"),"Native plugin root");
+  same("模型分组",NavigationModel.title("groups"),"Groups title");same("请求路由",NavigationModel.title("routing"),"Routing distinct");
+  System.out.println("PASS four task roots and canonical detail ownership");
+ }
 }

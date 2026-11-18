@@ -35,7 +35,7 @@ test('Native Android chrome replaces upstream chrome while preserving navigation
  assert.equal(await p.locator('.sidebar').evaluate(e=>getComputedStyle(e).display),'none');
  assert.equal(await p.locator('body').evaluate(e=>getComputedStyle(e).paddingLeft),'0px');
  assert.equal(await p.locator('#nav [data-view="providers"]').count(),1);
- assert.equal(await p.locator('html').evaluate(e=>getComputedStyle(e).getPropertyValue('--bg').trim()),'#ffffff');
+ assert.equal(await p.locator('html').evaluate(e=>getComputedStyle(e).getPropertyValue('--bg').trim()),'#f3f5f7');
 });
 
 test('Native navigation keeps installed plugin pages reachable',async t=>{
@@ -192,4 +192,47 @@ test('Plugin toolbar stays aligned in gateway mode as well as sidebar mode',asyn
   const info=await p.evaluate(()=>{const h=document.querySelector('.pm-head'),q=h.querySelector('.pm-find'),m=h.querySelector('.pm-mirror');return {display:getComputedStyle(h).display,search:q.getBoundingClientRect().top,mirror:m.getBoundingClientRect().top,thumb:getComputedStyle(h.querySelector('.thumb')).display};});
   assert.equal(info.display,'grid','Gateway mode must receive the same mobile toolbar layout');assert.equal(info.search,info.mirror,'Mirror and search must share one row');assert.equal(info.thumb,'none','Tabs retain a rounded desktop selection card');
  }
+});
+
+test('Android advanced options use solid controls when transparency is reduced and stop motion independently',async t=>{
+ const b=await chromium.launch(options);t.after(()=>b.close());const p=await b.newPage();
+ await p.setContent('<body class="web"><main id="view-settings" class="view"><div id="setTabs" class="warm-tabs"><button aria-selected="true">Network</button></div><input type="text" aria-label="Port"></main><div class="modal"><div class="dialog">Confirm</div></div></body>');
+ await p.addStyleTag({path:path.join(coreRoot,'internal/gui/assets/app.css')});
+ await p.addStyleTag({content:mobileCss});await p.addScriptTag({content:adapter});
+ assert.equal(await p.evaluate(()=>typeof magpieAndroidVisualOptions),'function');
+ const visuals=()=>p.evaluate(()=>{
+  const css=s=>getComputedStyle(document.querySelector(s));
+  return {glass:css('#setTabs').backdropFilter,field:css('input').backgroundColor,motion:css('.modal').animationDuration};
+ });
+ const enabled=await visuals();assert.match(enabled.glass,/blur\(/);assert.match(enabled.field,/^rgb\(/);
+ await p.evaluate(()=>magpieAndroidVisualOptions(true,false));
+ const solid=await visuals();assert.equal(solid.glass,'none');assert.equal(solid.field,enabled.field);
+ await p.evaluate(()=>magpieAndroidVisualOptions(false,true));
+ const still=await visuals();assert.equal(still.glass,enabled.glass);assert.ok(parseFloat(still.motion)<.001);
+});
+
+test('Android settings keeps the real tabs and search reachable in a narrow viewport',async t=>{
+ const b=await chromium.launch(options);t.after(()=>b.close());const p=await b.newPage({viewport:{width:320,height:568}});
+ await p.setContent('<body class="window web side-nav"><main id="view-settings" class="view"><div class="row-head set-head"><div id="setTabs" class="warm-tabs set-tabs"><button type="button" role="tab" data-set="general" aria-selected="true">General</button><button type="button" role="tab" data-set="network">Network and sharing</button><button type="button" role="tab" data-set="sync">Sync and backup</button></div><input class="sess-filter set-q" id="setQ" aria-label="Find a setting" type="search"></div><section class="set-page"><div class="list prefs"><div class="row pref"><div class="who"><div class="name">Setting name</div></div></div></div></section></main></body>');
+ await p.addStyleTag({path:path.join(coreRoot,'internal/gui/assets/app.css')});
+ await p.addStyleTag({content:mobileCss});await p.addScriptTag({content:adapter});
+ const layout=await p.evaluate(()=>{
+  const view=document.querySelector('main'),q=document.querySelector('#setQ'),tab=document.querySelector('[data-set=network]');
+  return {gutter:parseInt(getComputedStyle(view).paddingLeft),control:q.getBoundingClientRect().height,tab:tab.getBoundingClientRect().height,width:view.scrollWidth};
+ });
+ assert.equal(layout.gutter,20);assert.ok(layout.control>=48);assert.ok(layout.tab>=48);assert.ok(layout.width<=320);
+ await p.getByRole('searchbox',{name:'Find a setting'}).fill('LAN');
+ assert.equal(await p.locator('#setQ').inputValue(),'LAN');
+});
+
+test('Android title follows upstream in-page navigation and dynamic plugin pages',async t=>{
+ const b=await chromium.launch(options);t.after(()=>b.close());const p=await b.newPage();
+ await p.setContent('<main class="view" id="view-settings"></main><main class="view" id="view-gateway" hidden></main>');
+ await p.evaluate(()=>{window.views=[];window.AndroidExport={view:id=>views.push(id)}});
+ await p.addScriptTag({content:adapter});
+ await p.waitForFunction(()=>views.join(',')==='settings');
+ await p.evaluate(()=>{document.getElementById('view-settings').hidden=true;document.getElementById('view-gateway').hidden=false;});
+ await p.waitForFunction(()=>views.join(',')==='settings,gateway');
+ await p.evaluate(()=>{document.getElementById('view-gateway').hidden=true;document.body.insertAdjacentHTML('beforeend','<main class="view" id="view-plugin-review"></main>');});
+ await p.waitForFunction(()=>views.join(',')==='settings,gateway,plugin-review');
 });

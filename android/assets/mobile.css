@@ -159,3 +159,66 @@ body.magpie-android .editor .plugin-options.top { height:auto; min-height:0; pad
 body.magpie-android #view-gateway button { min-height:44px; max-width:100%; height:auto; white-space:normal; }
 body.magpie-android #view-gateway .segs { flex-wrap:wrap; }
 body.magpie-android #view-gateway .segs .opt { min-width:0; }
+
+/* Shared Android materials. The content and form values stay on opaque surfaces. */
+html[data-theme="light"]:has(body.magpie-android),
+html:not([data-theme="dark"]):has(body.magpie-android) {
+  --bg:#f3f5f7; --fg:#1a2027; --fg-2:#404d59; --muted:#65717c;
+  --line:#dce3ea; --line-2:#e8edf2; --card:#fff; --card-2:#f0f3f6;
+  --pill:#e9edf2; --accent:#202830; --accent-soft:#e9edf2;
+  --android-glass:rgba(248,250,252,.79); --android-rim:#d2dce6;
+  --android-glint:rgba(255,255,255,.95);
+}
+html[data-theme="dark"]:has(body.magpie-android) {
+  --android-glass:rgba(34,41,48,.85); --android-rim:#46515c;
+  --android-glint:rgba(235,246,255,.13);
+}
+body.magpie-android .view {
+  --view-left:20px; --view-right:20px;
+  padding-left:20px; padding-right:20px;
+  box-sizing:border-box;
+}
+body.magpie-android :is(input:not([type=checkbox]):not([type=radio]),textarea,select) {
+  background:var(--card); color:var(--fg); border-radius:12px;
+}
+body.magpie-android :is(button,input,textarea,select):focus-visible {
+  outline:2px solid var(--fg-2); outline-offset:2px;
+}
+body.magpie-android #view-settings :is(.set-head,#setTabs) {
+  box-sizing:border-box; max-width:100%; min-width:0;
+}
+body.magpie-android #view-settings .set-head {
+  display:flex; flex-direction:column; align-items:stretch; gap:12px;
+  padding:8px 0 12px; margin-left:0; margin-right:0;
+}
+body.magpie-android #view-settings {
+  padding-left:20px; padding-right:20px;
+}
+body.magpie-android #setTabs {
+  display:flex; flex-wrap:wrap; align-items:stretch; gap:3px;
+  padding:4px; border-radius:17px; border:1px solid var(--android-rim,var(--line));
+  background:var(--android-glass,var(--card)); backdrop-filter:blur(12px) saturate(112%);
+  box-shadow:inset 0 1px 0 var(--android-glint,transparent);
+}
+body.magpie-android #setTabs button {
+  flex:1 1 auto; min-height:48px; max-width:100%; white-space:normal;
+  border-radius:12px; padding:6px 10px;
+}
+body.magpie-android #setTabs button[aria-selected=true] { background:var(--pill); color:var(--fg); }
+body.magpie-android #view-settings #setQ {
+  width:100%; min-height:48px; box-sizing:border-box; flex:none;
+}
+body.magpie-android :is(.modal .dialog, dialog) {
+  border:1px solid var(--android-rim,var(--line)); border-radius:20px;
+  background:var(--android-glass,var(--card)); backdrop-filter:blur(16px) saturate(112%);
+  box-shadow:inset 0 1px 0 var(--android-glint,transparent), 0 10px 35px rgba(22,31,42,.12);
+}
+body.magpie-android .modal .editor { background:var(--card); }
+body.magpie-android.android-solid :is(#setTabs,.modal .dialog,dialog) {
+  backdrop-filter:none; background:var(--card);
+}
+body.magpie-android.android-still *, body.magpie-android.android-still *::before,
+body.magpie-android.android-still *::after {
+  animation-duration:0.001ms !important; transition-duration:0.001ms !important;
+  scroll-behavior:auto !important;
+}

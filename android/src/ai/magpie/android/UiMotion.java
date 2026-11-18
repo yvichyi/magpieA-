@@ -32,6 +32,7 @@ final class UiMotion {
         reset(root);root.postOnAnimation(()->{if(routes.getOrDefault(a,0)==epoch&&!a.isDestroyed()&&!a.isFinishing())action.run();});
     }
     static boolean enabled(){return ValueAnimator.areAnimatorsEnabled();}
+    static boolean enabled(android.content.Context context){return !GlassOptions.stillMotion(context);}
     static void reset(View v){epochs.put(v,epochs.getOrDefault(v,0)+1);ValueAnimator size=sizes.remove(v);if(size!=null)size.cancel();v.animate().cancel();v.animate().withEndAction(null);v.setAlpha(1);v.setTranslationY(0);}
     static void swap(View v,Runnable update){
         reset(v);update.run();
@@ -40,7 +41,7 @@ final class UiMotion {
     static void reveal(View view,boolean show){
         int from=view.getVisibility()==View.VISIBLE?view.getHeight():0;reset(view);int epoch=epochs.get(view);
         ViewGroup.LayoutParams layout=view.getLayoutParams();
-        if(!enabled()||!view.isAttachedToWindow()){layout.height=ViewGroup.LayoutParams.WRAP_CONTENT;view.setLayoutParams(layout);view.setVisibility(show?View.VISIBLE:View.GONE);return;}
+        if(!enabled(view.getContext())||!view.isAttachedToWindow()){layout.height=ViewGroup.LayoutParams.WRAP_CONTENT;view.setLayoutParams(layout);view.setVisibility(show?View.VISIBLE:View.GONE);return;}
         int width=view.getWidth();if(width<=0&&view.getParent() instanceof View)width=((View)view.getParent()).getWidth();
         view.measure(View.MeasureSpec.makeMeasureSpec(Math.max(1,width),View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec(0,View.MeasureSpec.UNSPECIFIED));
         int target=show?view.getMeasuredHeight():0;view.setVisibility(View.VISIBLE);layout.height=from;view.setLayoutParams(layout);
@@ -52,8 +53,9 @@ final class UiMotion {
         if(!(target instanceof ViewGroup))return;ViewGroup box=(ViewGroup)target;
         if(box.getChildCount()!=2)return;
         View copy=box.getChildAt(0),check=box.getChildAt(1);copy.animate().cancel();check.animate().cancel();
-        copy.setAlpha(0);check.setAlpha(1);check.setScaleX(enabled()?.8f:1);check.setScaleY(enabled()?.8f:1);
-        if(enabled())check.animate().scaleX(1).scaleY(1).setDuration(160).setInterpolator(EASE).start();
+        boolean animate=enabled(box.getContext());
+        copy.setAlpha(0);check.setAlpha(1);check.setScaleX(animate?.8f:1);check.setScaleY(animate?.8f:1);
+        if(animate)check.animate().scaleX(1).scaleY(1).setDuration(160).setInterpolator(EASE).start();
         int token=epochs.getOrDefault(box,0)+1;epochs.put(box,token);
         box.postDelayed(()->{if(epochs.getOrDefault(box,0)!=token)return;copy.setAlpha(1);check.setAlpha(0);},1300);
     }

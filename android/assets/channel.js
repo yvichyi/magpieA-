@@ -11,6 +11,7 @@
       leave: request => port.postMessage(JSON.stringify({action:'leave', request})),
       view: view => port.postMessage(JSON.stringify({action:'view', view}))
     });
+    window.magpieAndroidReportView?.();
   }
   window.addEventListener('message', ready);
 })

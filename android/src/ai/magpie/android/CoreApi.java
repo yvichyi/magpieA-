@@ -25,9 +25,12 @@ final class CoreApi {
         HttpFailure(int status,String body){super("请求失败（HTTP "+status+"）");this.status=status;this.body=body;}
     }
     String post(String path,String body)throws IOException{
-        if(!path.equals("/api/provider/list")&&!path.equals("/api/provider/save"))throw new IllegalArgumentException("Invalid setup API path");
+        if(!java.util.Arrays.asList("/api/provider/list","/api/provider/save","/api/plugins/add","/api/plugins/upgrade","/api/plugins/off","/api/plugins/builtin","/api/plugins/check").contains(path))throw new IllegalArgumentException("Invalid write API path");
         byte[] bytes=body.getBytes(StandardCharsets.UTF_8);if(bytes.length>1024*1024)throw new IllegalArgumentException("配置内容过大");
-        authenticate();HttpURLConnection c=connection(path);c.setReadTimeout(30000);c.setRequestMethod("POST");c.setDoOutput(true);
+        authenticate();HttpURLConnection c=connection(path);
+        if(path.equals("/api/plugins/add")||path.equals("/api/plugins/upgrade")) c.setReadTimeout(320000);
+        else c.setReadTimeout(path.equals("/api/plugins/check") ? 65000 : 30000);
+        c.setRequestMethod("POST");c.setDoOutput(true);
         c.setRequestProperty("Cookie",cookie);c.setRequestProperty("Origin",origin);c.setRequestProperty("Content-Type","application/json; charset=utf-8");c.setFixedLengthStreamingMode(bytes.length);
         try{try(OutputStream out=c.getOutputStream()){out.write(bytes);}int status=c.getResponseCode();if(status!=200){String error="";InputStream stream=c.getErrorStream();if(stream!=null)try(InputStream in=stream){byte[] limit=new byte[8192];int size=in.read(limit);if(size>0)error=new String(limit,0,size,StandardCharsets.UTF_8);}throw new HttpFailure(status,error);}
             try(InputStream in=c.getInputStream();ByteArrayOutputStream out=new ByteArrayOutputStream()){

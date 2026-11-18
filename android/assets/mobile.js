@@ -19,6 +19,30 @@
   };
   document.documentElement.classList.add('magpie-android');
   document.body.classList.add('magpie-android');
+  window.magpieAndroidVisualOptions = (solid, still) => {
+    document.body.classList.toggle('android-solid', solid);
+    document.body.classList.toggle('android-still', still);
+  };
+  let announced = '', announcedBridge;
+  window.magpieAndroidReportView = () => {
+    const current = document.querySelector('.view[id^="view-"]:not([hidden])');
+    const bridge = window.AndroidExport;
+    if (!current || !bridge?.view) return;
+    const id = current.id.slice(5);
+    if (!id || (id === announced && bridge === announcedBridge)) return;
+    announced = id;
+    announcedBridge = bridge;
+    bridge.view(id);
+  };
+  new MutationObserver(window.magpieAndroidReportView).observe(document.body, {
+    childList: true, subtree: true, attributes: true, attributeFilter: ['hidden']
+  });
+  window.magpieAndroidReportView();
+  window.magpieAndroidPluginTab = tab => {
+    if (tab !== 'builtin' && tab !== 'installed') return;
+    window.pluginTabTo?.(tab);
+    window.loadPlugins?.();
+  };
   // Upstream seals backups on its own filesystem. On the local phone the
   // native host copies only the newly named encrypted backup to SAF.
   const originalFetch = window.fetch.bind(window);

@@ -17,7 +17,7 @@ final class PeriodTabs extends FrameLayout {
         selected=index;
         for(int i=0;i<labels.length;i++){boolean on=i==index;labels[i].setTextColor(on?ui.ink:ui.muted);labels[i].setTypeface(ui.font(false,on?600:400));labels[i].setSelected(on);String name=labels[i].getText().toString();labels[i].setContentDescription((name.equals("7 天")?"近 7 天":name.equals("30 天")?"近 30 天":name)+(on?"，已选择":""));}
         if(getWidth()==0)return;int width=getWidth()/labels.length;indicator.animate().cancel();
-        if(animate&&UiMotion.enabled())indicator.animate().translationX(index*width).setDuration(200).setInterpolator(UiMotion.EASE).start();else indicator.setTranslationX(index*width);
+        if(animate&&UiMotion.enabled(ui.a))indicator.animate().translationX(index*width).setDuration(170).setInterpolator(UiMotion.EASE).start();else indicator.setTranslationX(index*width);
     }
     @Override protected void onMeasure(int widthSpec,int heightSpec){
         super.onMeasure(widthSpec,heightSpec);

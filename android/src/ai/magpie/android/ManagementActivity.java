@@ -5,12 +5,11 @@ import android.content.*;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.*;
-import android.provider.OpenableColumns;
 import android.webkit.*;
 import android.webkit.CookieManager;
 import android.widget.*;
-import android.view.Gravity;
 import android.view.View;
+import android.view.WindowManager;
 import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
@@ -21,10 +20,10 @@ public final class ManagementActivity extends Activity {
     private WebView web;
     private Ui ui;
     private String origin, key, currentView;
+    private String parentRoot;
     private boolean remoteMode;
     private WebMessagePort exportPort;
-    private TextView title,parentLabel;
-    private LinearLayout navigation;
+    private TextView title;
     private final java.util.Map<String,String> pageTitles=new java.util.HashMap<>();
     private ProgressBar progress;
     private LinearLayout error;
@@ -33,10 +32,10 @@ public final class ManagementActivity extends Activity {
     private byte[] exportBytes;
     private String exportMime, exportName;
     private boolean pageLoaded;
+    private int documentEpoch;
     private int editorEpoch;
     private boolean rendererGone;
     private Runnable leaveAction;
-    private AlertDialog nativeLeaveDialog;
     private long leaveEpoch;
     private String leaveRequest="";
     private final android.os.Handler main = new android.os.Handler(Looper.getMainLooper());
@@ -45,21 +44,31 @@ public final class ManagementActivity extends Activity {
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved); ui = new Ui(this);
         android.content.SharedPreferences p = getSharedPreferences("host", MODE_PRIVATE);
-        remoteMode = getIntent().getBooleanExtra("remote", false);
+        remoteMode = getIntent().getBooleanExtra("remote", AppNavigation.remote(this));
         origin = remoteMode ? p.getString("remoteAddress", "") : GatewayService.managementOrigin;
         key = remoteMode ? p.getString("remoteKey", "") : GatewayService.key(this);
-        currentView = getIntent().getStringExtra("view"); if (currentView == null) currentView = "providers";
+        currentView = saved == null ? getIntent().getStringExtra("view") : saved.getString("view");
+        if(currentView == null) currentView = "providers";
+        parentRoot=AppNavigation.parent(this,currentView);
         LinearLayout root = ui.column(); root.setBackgroundColor(ui.bg);
-        LinearLayout toolbar=ui.row();toolbar.setPadding(ui.dp(8),ui.dp(5),ui.dp(8),ui.dp(5));toolbar.setBackgroundColor(ui.card);
-        toolbar.addView(ui.iconButton("back","返回"+parentName(),this::onBackPressed));LinearLayout heading=ui.column();title=ui.text("Magpie",17,ui.ink,true);title.setMaxLines(2);title.setEllipsize(android.text.TextUtils.TruncateAt.END);heading.addView(title);parentLabel=ui.text("来自"+parentName(),12,ui.muted,false);heading.addView(parentLabel);ui.grow(toolbar,heading);
-        toolbar.addView(ui.iconButton("refresh","刷新页面",this::confirmReload));root.addView(toolbar);
+        title=ui.text(viewName(currentView),20,ui.ink,false);
+        title.setMaxLines(2);
+        title.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        LinearLayout toolbar=ToolsActivity.header(ui,title,"返回"+parentName(),this::onBackPressed);
+        View refresh=ui.iconButton("refresh","刷新页面",this::confirmReload);
+        refresh.setLayoutParams(new LinearLayout.LayoutParams(ui.dp(48),ui.dp(48)));
+        toolbar.addView(refresh);
+        root.addView(toolbar);
+        ui.rule(root,0);
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         progress = new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal); progress.setMax(100); root.addView(progress,new LinearLayout.LayoutParams(-1,ui.dp(2)));
-        error=ui.column(); error.setPadding(ui.dp(24),ui.dp(28),ui.dp(24),ui.dp(20)); FrameLayout surface=new FrameLayout(this);root.addView(surface,new LinearLayout.LayoutParams(-1,0,1));errorScroll=new ScrollView(this);errorScroll.addView(error);errorScroll.setVisibility(View.GONE);surface.addView(errorScroll,new FrameLayout.LayoutParams(-1,-1));
+        error=ui.column(); error.setPadding(ui.dp(20),ui.dp(28),ui.dp(20),ui.dp(20)); FrameLayout surface=new FrameLayout(this);root.addView(surface,new LinearLayout.LayoutParams(-1,0,1));errorScroll=new ScrollView(this);errorScroll.addView(error);errorScroll.setVisibility(View.GONE);surface.addView(errorScroll,new FrameLayout.LayoutParams(-1,-1));
         web = new WebView(this); web.setBackgroundColor(ui.bg); surface.addView(web,0,new FrameLayout.LayoutParams(-1,-1));
         WebSettings s=web.getSettings(); s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true); s.setDatabaseEnabled(false);
         s.setAllowFileAccess(false); s.setAllowContentAccess(true); s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        s.setSupportZoom(true); s.setBuiltInZoomControls(true); s.setDisplayZoomControls(false); s.setTextZoom(100);
-        s.setUserAgentString(s.getUserAgentString()+" MagpieAndroid/1.11"); s.setMediaPlaybackRequiresUserGesture(true);
+        s.setSupportZoom(true); s.setBuiltInZoomControls(true); s.setDisplayZoomControls(false);
+        s.setTextZoom(Math.round(getResources().getConfiguration().fontScale*100));
+        s.setUserAgentString(s.getUserAgentString()+" MagpieAndroid/"+HostActions.APP_VERSION); s.setMediaPlaybackRequiresUserGesture(true);
         CookieManager.getInstance().setAcceptCookie(true); CookieManager.getInstance().setAcceptThirdPartyCookies(web,false);
         web.setWebViewClient(new WebViewClient() {
             @Override public WebResourceResponse shouldInterceptRequest(WebView v,WebResourceRequest r){
@@ -80,39 +89,48 @@ public final class ManagementActivity extends Activity {
                 openExternal(url); return true;
             }
             @Override public void onPageStarted(WebView v,String url,Bitmap icon) {
-                pageLoaded=false;editorEpoch++; closeExportPort(); progress.setVisibility(android.view.View.VISIBLE);
+                invalidateDocument();
+                if(errorScroll.getVisibility()!=View.VISIBLE)progress.setVisibility(View.VISIBLE);
             }
             @Override public void onPageFinished(WebView v,String url) {
-                progress.setVisibility(android.view.View.GONE);
+                if(v!=web||rendererGone||isFinishing()||isDestroyed())return;
+                progress.setVisibility(View.GONE);
                 if (!CoreConfig.sameOrigin(url,origin)) { v.stopLoading(); return; }
-                if(errorScroll.getVisibility()==android.view.View.VISIBLE){pageLoaded=false;closeExportPort();return;}
+                // A Chromium load-complete can arrive after the native SSL/HTTP/load error.
+                if(errorScroll.getVisibility()==View.VISIBLE){pageLoaded=false;closeExportPort();return;}
                 pageLoaded=true; CookieManager.getInstance().flush();
+                int document=documentEpoch;
                 try {
                     String css=readAsset("mobile.css"), js=readAsset("mobile.js");
                     String token = CoreConfig.newKey();
                     String channel = readAsset("channel.js")+"("+JSONObject.quote(token)+");";
-                    v.evaluateJavascript("window.magpieAndroidLocal="+(!remoteMode)+";(function(){if(!document.getElementById('android-css')){var s=document.createElement('style');s.id='android-css';s.textContent="+JSONObject.quote(css)+";document.head.appendChild(s);}})();"+js+channel, ignored -> {
-                        if(isFinishing()||!CoreConfig.sameOrigin(web.getUrl(),origin))return;
+                    v.evaluateJavascript("window.magpieAndroidLocal="+(!remoteMode)+";(function(){if(!document.getElementById('android-css')){var s=document.createElement('style');s.id='android-css';s.textContent="+JSONObject.quote(css)+";document.head.appendChild(s);}})();"+js+visualOptions()+channel, ignored -> {
+                        if(!documentCurrent(document))return;
                         closeExportPort(); WebMessagePort[] ports = web.createWebMessageChannel(); exportPort = ports[0];
                         exportPort.setWebMessageCallback(new WebMessagePort.WebMessageCallback(){
                             @Override public void onMessage(WebMessagePort port,WebMessage message){
-                                if(port==exportPort&&CoreConfig.sameOrigin(web.getUrl(),origin))handleExportMessage(message.getData());
+                                if(port==exportPort&&documentCurrent(document))handleExportMessage(message.getData());
                             }
                         });
                         web.postWebMessage(new WebMessage(token,new WebMessagePort[]{ports[1]}),Uri.parse(origin));
                         web.evaluateJavascript("window.magpieAndroidNavigation?window.magpieAndroidNavigation():[]",data->{
-                            if(isFinishing()||!CoreConfig.sameOrigin(web.getUrl(),origin))return;
+                            if(!documentCurrent(document))return;
                             try{org.json.JSONArray items=new org.json.JSONArray(data);for(int i=0;i<items.length()&&i<256;i++){JSONObject item=items.getJSONObject(i);String id=item.getString("id"),label=item.getString("title");if(id.length()<=160&&label.length()<=180)pageTitles.put(id,label);}}catch(Exception invalidMetadata){}updateTitle();
                         });
+                        if(leaveAction!=null)sendLeave();
+                        String pluginTab=getIntent().hasExtra("builtinId")?"builtin":getIntent().hasExtra("pluginSpec")?"installed":null;
+                        if("plugins".equals(currentView)&&pluginTab!=null){
+                            web.evaluateJavascript("window.magpieAndroidPluginTab&&window.magpieAndroidPluginTab("+JSONObject.quote(pluginTab)+")",null);
+                        }
                         if(getIntent().hasExtra("groupId")||getIntent().getBooleanExtra("addGroup",false))dispatchGroup(++editorEpoch,0);
                         if(getIntent().hasExtra("providerId")||getIntent().getBooleanExtra("addProvider",false)){
                             String id=getIntent().getStringExtra("providerId");boolean add=getIntent().getBooleanExtra("addProvider",false);
                             web.evaluateJavascript("window.magpieAndroidProvider("+JSONObject.quote(id==null?"":id)+","+add+")",result->{
-                                if("true".equals(result)){getIntent().removeExtra("providerId");getIntent().removeExtra("addProvider");}
+                                if(documentCurrent(document)&&"true".equals(result)){getIntent().removeExtra("providerId");getIntent().removeExtra("addProvider");}
                             });
                         }
                     });
-                } catch (IOException e) { Toast.makeText(ManagementActivity.this,"手机界面适配资源读取失败",Toast.LENGTH_LONG).show(); }
+                } catch (IOException e) { showError("无法打开管理页面","手机界面适配资源读取失败，请重试。"); }
                 String path=Uri.parse(url).getQueryParameter("view"); if(path!=null) {currentView=path; updateTitle();}
             }
             @Override public void onReceivedError(WebView v,WebResourceRequest r,WebResourceError e) {
@@ -127,11 +145,12 @@ public final class ManagementActivity extends Activity {
             }
             @Override public boolean onRenderProcessGone(WebView v,RenderProcessGoneDetail detail) {
                 // A broken/updated system WebView must not kill the gateway's app.
-                pageLoaded=false;rendererGone=true;closeExportPort();
+                rendererGone=true;
                 android.view.ViewParent parent=v.getParent();
                 if(parent instanceof android.view.ViewGroup)((android.view.ViewGroup)parent).removeView(v);
                 v.destroy();
-                showError("系统网页组件已停止","请更新或重启 Android System WebView / Chrome 后重试。管理页已安全关闭；本机网关继续运行，可返回工作台查看状态。");
+                web=null;
+                showError("系统网页组件已停止","请更新或重启 Android System WebView / Chrome 后重试。本机网关继续运行，可返回接入页查看状态。");
                 return true;
             }
         });
@@ -155,53 +174,120 @@ public final class ManagementActivity extends Activity {
             else if(CoreConfig.sameOrigin(url,origin))download(url,mime,URLUtil.guessFileName(url,disposition,mime));
             else openExternal(url);
         });
-        navigation=ui.column();root.addView(navigation);refreshNavigation();
-        ui.viewport(root,null,navigation);setContentView(root);load(currentView);
+        setContentView(root);
+        load(currentView);
     }
-    @Override protected void onResume(){super.onResume();UiMotion.enter(this);}
+    @Override protected void onResume(){
+        super.onResume();
+        UiMotion.enter(this);
+        if(pageLoaded&&!sameWorkspace())showError("工作空间已更改","请返回后在当前工作空间重新打开此页面。",false);
+        if(web!=null&&pageLoaded&&documentCurrent(documentEpoch))web.evaluateJavascript(visualOptions(),null);
+    }
     @Override protected void onPause(){UiMotion.pause(this);super.onPause();}
+    @Override protected void onSaveInstanceState(Bundle out){out.putString("view",currentView);super.onSaveInstanceState(out);}
+    private String visualOptions(){
+        return "window.magpieAndroidVisualOptions?.("+GlassOptions.solidSurface(this)+","+GlassOptions.stillMotion(this)+");";
+    }
+    private boolean documentCurrent(int epoch){
+        return documentEpoch==epoch&&pageLoaded&&!rendererGone&&!isFinishing()&&!isDestroyed()
+            &&errorScroll.getVisibility()!=View.VISIBLE&&CoreConfig.sameOrigin(web.getUrl(),origin)&&sameWorkspace();
+    }
+    private boolean sameWorkspace(){
+        return remoteMode==AppNavigation.remote(this)&&origin.equals(AppNavigation.origin(this))
+            &&key.equals(AppNavigation.key(this));
+    }
+    private void invalidateDocument(){
+        pageLoaded=false;
+        documentEpoch++;
+        editorEpoch++;
+        leaveAction=null;
+        leaveRequest="";
+        closeExportPort();
+    }
     private void dispatchGroup(int epoch,int attempt){
-        if(epoch!=editorEpoch||isFinishing()||isDestroyed()||rendererGone||!CoreConfig.sameOrigin(web.getUrl(),origin))return;
+        if(epoch!=editorEpoch||!documentCurrent(documentEpoch))return;
         String id=getIntent().getStringExtra("groupId");boolean add=getIntent().getBooleanExtra("addGroup",false);
         web.evaluateJavascript("window.magpieAndroidGroup?window.magpieAndroidGroup("+JSONObject.quote(id==null?"":id)+","+add+"):false",result->{
-            if(epoch!=editorEpoch||isFinishing())return;
+            if(epoch!=editorEpoch||!documentCurrent(documentEpoch))return;
             if("true".equals(result)){getIntent().removeExtra("groupId");getIntent().removeExtra("addGroup");}
             else if(attempt<39)main.postDelayed(()->dispatchGroup(epoch,attempt+1),250);
             else Toast.makeText(this,"分组页尚未就绪，可在当前页面直接新建或编辑",Toast.LENGTH_LONG).show();
         });
     }
-    private String parentName(){if(getIntent().getBooleanExtra("returnToSetup",false))return "添加服务商";String root=AppNavigation.parent(this,currentView);int i=java.util.Arrays.asList(NavigationModel.ROOTS).indexOf(root);return i<0?"工具":NavigationModel.LABELS[i];}
-    private void refreshNavigation(){
-        if(navigation==null)return;navigation.removeAllViews();navigation.addView(ui.bottomNav(NavigationModel.section(currentView),id->{
-            if(id.equals("plugins")&&currentView.equals("plugins")){UiMotion.stay(this);return;}
-            requestLeave(()->leavePrimary(id));
-        }));
+    private String parentName(){
+        if(getIntent().getBooleanExtra("returnToSetup",false))return "添加服务商";
+        if(getIntent().getBooleanExtra("parentSettings",false))return "设置";
+        return NavigationModel.title(parentRoot);
     }
-    private String viewName(String view){if(view.equals("usage"))return "请求明细与导出";String known=NavigationModel.title(view);if(!known.equals("扩展页面"))return known;if(pageTitles.containsKey(view))return pageTitles.get(view);return view.equals(getIntent().getStringExtra("view"))&&getIntent().getStringExtra("pageTitle")!=null?getIntent().getStringExtra("pageTitle"):known;}
-    private void updateTitle(){title.setText(viewName(currentView));parentLabel.setText("来自"+parentName());refreshNavigation();}
-    private void navigate(String view){
-        UiMotion.stay(this);leaveEpoch++;leaveAction=null;leaveRequest="";
-        if(!pageLoaded){load(view);return;}
-        // Select the upstream navigation button so unsaved-editor confirmation stays upstream's.
-        String script="(function(){if(typeof show==='function'){Promise.resolve(show("+JSONObject.quote(view)+")).then(ok=>{if(ok&&window.AndroidExport)AndroidExport.view(new URLSearchParams(location.search).get('view')||'agents')});return true;}return false;})()";
-        web.evaluateJavascript(script,result->{if(!"true".equals(result))load(view);});
+    private String viewName(String view){
+        String label=getIntent().getStringExtra("pageTitle");
+        if(view.equals(getIntent().getStringExtra("view"))&&label!=null&&!label.isBlank())return label;
+        if(view.equals("usage"))return "请求明细与导出";
+        String known=NavigationModel.title(view);
+        return known.equals("扩展页面")?pageTitles.getOrDefault(view,known):known;
     }
-    private void load(String view){currentView=view;updateTitle();errorScroll.setVisibility(android.view.View.GONE);web.setVisibility(android.view.View.VISIBLE);
+    private void updateTitle(){title.setText(viewName(currentView));}
+    private void load(String view){
+        invalidateDocument();
+        currentView=view;
+        updateTitle();
+        errorScroll.setVisibility(View.GONE);
+        web.setVisibility(View.VISIBLE);
+        if(!remoteMode&&("agents".equals(view)||"sessions".equals(view))){
+            showError("需要远程工作空间","此功能运行在电脑或服务器上。请在工作空间中连接远程 Magpie 后再打开。",false);
+            return;
+        }
         int engineMajor=CoreConfig.chromiumMajor(web.getSettings().getUserAgentString());
         if(engineMajor>0&&engineMajor<110){showError("请更新 Android System WebView","当前系统网页组件使用 Chromium "+engineMajor+"。此界面需要 Chromium / WebView 110 或更新版本；请更新系统 WebView（部分手机使用 Chrome），然后重新打开应用。本机网关可继续运行。");return;}
-        if(!remoteMode){if(!GatewayService.ready){showError("本机网关未就绪","返回工作台启动网关后再试。");return;}origin=GatewayService.managementOrigin;key=GatewayService.key(this);}
-        web.loadUrl(origin+"/?view="+Uri.encode(view)+"&k="+Uri.encode(key));}
-    private void showError(String head,String message){
-        pageLoaded=false;editorEpoch++;closeExportPort();
-        progress.setVisibility(android.view.View.GONE);error.removeAllViews();error.addView(ui.text(head,22,ui.ink,true));ui.space(error,12);error.addView(ui.text(message,14,ui.muted,false));ui.space(error,20);
-        error.addView(ui.button("重试连接",true,()->{if(rendererGone){Intent next=new Intent(getIntent()).setClass(this,ManagementActivity.class).putExtra("view",currentView).putExtra("remote",remoteMode).putExtra("parentRoot",AppNavigation.parent(this,currentView));startActivity(next);finish();}else load(currentView);}));
-        if(remoteMode||GatewayService.ready){ui.space(error,10);error.addView(ui.button("使用手机浏览器管理",false,this::browserFallback));}
-        ui.space(error,10);error.addView(ui.button("返回"+parentName(),false,this::requestLeave));errorScroll.setVisibility(android.view.View.VISIBLE);web.setVisibility(android.view.View.GONE);
+        if(!remoteMode){
+            if(!GatewayService.ready){showError("本机网关未就绪","返回接入页启动网关后再试。");return;}
+            origin=GatewayService.managementOrigin;key=GatewayService.key(this);
+        }
+        if(!sameWorkspace()||origin.isEmpty()||key.isEmpty()){
+            showError("工作空间未就绪","请返回后检查工作空间的地址与访问密钥。",false);
+            return;
+        }
+        web.loadUrl(pageUrl(origin)+"&k="+Uri.encode(key));
+    }
+    private String pageUrl(String address){
+        String url=address+"/?view="+Uri.encode(currentView);
+        String tab=getIntent().getStringExtra("settingsTab");
+        if("settings".equals(currentView)&&tab!=null)url+="&tab="+Uri.encode(tab);
+        return url;
+    }
+    private void showError(String head,String message){showError(head,message,true);}
+    private void showError(String head,String message,boolean retry){
+        invalidateDocument();
+        progress.setVisibility(View.GONE);
+        error.removeAllViews();
+        error.addView(ui.text(head,24,ui.ink,true));
+        ui.space(error,12);
+        error.addView(ui.text(message,15,ui.muted,false));
+        ui.space(error,20);
+        if(retry){
+            error.addView(ui.button("重试连接",true,this::reloadPage));
+            ui.space(error,10);
+            if(remoteMode||GatewayService.ready){
+                error.addView(ui.button("使用手机浏览器管理",false,this::browserFallback));
+                ui.space(error,10);
+            }
+        }
+        error.addView(ui.button("返回"+parentName(),false,this::requestLeave));
+        errorScroll.setVisibility(View.VISIBLE);
+        if(web!=null)web.setVisibility(View.GONE);
+    }
+    private void reloadPage(){
+        if(rendererGone){
+            Intent next=new Intent(getIntent()).setClass(this,ManagementActivity.class)
+                .putExtra("view",currentView).putExtra("remote",remoteMode).putExtra("parentRoot",parentRoot);
+            startActivity(next);
+            finish();
+        }else load(currentView);
     }
     private void browserFallback(){
         String address=remoteMode?origin:GatewayService.managementOrigin;
         if(address==null||address.isEmpty()){Toast.makeText(this,"请先启动本机网关",Toast.LENGTH_SHORT).show();return;}
-        String url=address+"/?view="+Uri.encode(currentView);
+        String url=pageUrl(address);
         // A remote browser signs in itself; never put remote credentials into an Intent.
         if(!remoteMode)url+="&k="+Uri.encode(GatewayService.key(this));
         openExternal(url);
@@ -263,13 +349,18 @@ public final class ManagementActivity extends Activity {
         if(!pageLoaded){requestLeave();return;}
         web.evaluateJavascript("window.magpieAndroidBack?window.magpieAndroidBack():false",handled->{if(!"true".equals(handled))requestLeave();});
     }
-    private void requestLeave(){requestLeave(()->{if(getIntent().getBooleanExtra("returnToSetup",false))UiMotion.close(this);else AppNavigation.primary(this,AppNavigation.parent(this,currentView));});}
-    private void leavePrimary(String id){
-        if(!getIntent().getBooleanExtra("returnToSetup",false)){AppNavigation.primary(this,id);return;}
-        if(nativeLeaveDialog!=null&&nativeLeaveDialog.isShowing())return;
-        nativeLeaveDialog=new AlertDialog.Builder(this,ui.dialogTheme).setTitle("离开添加服务商？").setMessage("原生添加页还有未保存的地址、密钥和模型选择。").setNegativeButton("留在当前页",null).setPositiveButton("放弃并继续",(d,w)->{setResult(RESULT_FIRST_USER,new Intent().putExtra("primary",id));UiMotion.close(this);}).create();nativeLeaveDialog.show();
+    private void requestLeave(){requestLeave(() -> UiMotion.close(this));}
+    private void sendLeave(){
+        if (web == null || leaveAction == null) return;
+        web.evaluateJavascript("window.magpieAndroidLeave&&window.magpieAndroidLeave("+JSONObject.quote(leaveRequest)+")",null);
     }
-    private void requestLeave(Runnable action){UiMotion.stay(this);leaveAction=action;leaveRequest=Long.toString(++leaveEpoch);if(!pageLoaded||exportPort==null){leaveAction=null;leaveRequest="";action.run();return;}web.evaluateJavascript("window.magpieAndroidLeave&&window.magpieAndroidLeave("+JSONObject.quote(leaveRequest)+")",null);}
+    private void requestLeave(Runnable action){
+        UiMotion.stay(this);
+        if (!pageLoaded || web == null) { action.run(); return; }
+        leaveAction=action;
+        leaveRequest=Long.toString(++leaveEpoch);
+        if (exportPort != null) sendLeave();
+    }
     private void confirmReload(){new AlertDialog.Builder(this,ui.dialogTheme).setTitle("刷新管理界面？").setMessage("尚未保存的编辑会丢失。").setNegativeButton("取消",null).setPositiveButton("刷新",(d,w)->load(currentView)).show();}
-    @Override protected void onDestroy(){if(nativeLeaveDialog!=null)nativeLeaveDialog.dismiss();if(fileCallback!=null)fileCallback.onReceiveValue(null);closeExportPort();if(web!=null)web.destroy();main.removeCallbacksAndMessages(null);super.onDestroy();}
+    @Override protected void onDestroy(){if(fileCallback!=null)fileCallback.onReceiveValue(null);closeExportPort();if(web!=null)web.destroy();main.removeCallbacksAndMessages(null);super.onDestroy();}
 }

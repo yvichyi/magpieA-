@@ -21,14 +21,14 @@ final class Ui {
         dark = (a.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
         dialogTheme = dark ? android.R.style.Theme_Material_Dialog_Alert : android.R.style.Theme_Material_Light_Dialog_Alert;
         // Neutral surfaces; hierarchy comes from alignment, spacing and rules.
-        bg = Color.parseColor(dark ? "#141414" : "#FFFFFF");
-        card = Color.parseColor(dark ? "#141414" : "#FFFFFF");
-        ink = Color.parseColor(dark ? "#F5F5F5" : "#181818");
-        muted = Color.parseColor(dark ? "#A3A3A3" : "#737373");
-        line = Color.parseColor(dark ? "#333333" : "#E7E7E7");
-        accent = Color.parseColor(dark ? "#F5F5F5" : "#181818");
-        soft = Color.parseColor(dark ? "#262626" : "#F5F5F5");
-        accentSoft = Color.parseColor(dark ? "#262626" : "#F5F5F5");
+        bg = Color.parseColor(dark ? "#11151A" : "#F3F5F7");
+        card = Color.parseColor(dark ? "#181D23" : "#FFFFFF");
+        ink = Color.parseColor(dark ? "#E9EDF2" : "#1A2027");
+        muted = Color.parseColor(dark ? "#A3A3A3" : "#65717C");
+        line = Color.parseColor(dark ? "#333333" : "#DDE3E9");
+        accent = Color.parseColor(dark ? "#E9EDF2" : "#1A2027");
+        soft = Color.parseColor(dark ? "#262626" : "#E9EDF2");
+        accentSoft = Color.parseColor(dark ? "#262626" : "#E9EDF2");
         a.getWindow().setStatusBarColor(bg); a.getWindow().setNavigationBarColor(bg);
         a.getWindow().getDecorView().setSystemUiVisibility(dark ? 0 : View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
     }
@@ -37,7 +37,7 @@ final class Ui {
     LinearLayout row() { LinearLayout v = new LinearLayout(a); v.setOrientation(LinearLayout.HORIZONTAL); v.setGravity(Gravity.CENTER_VERTICAL); return v; }
     TextView text(String s, float size, int color, boolean bold) {
         TextView v = new TextView(a); v.setText(s); v.setTextSize(Math.max(12,size)); v.setTextColor(color);
-        v.setIncludeFontPadding(false);v.setLineSpacing(dp(2), 1.04f);v.setTypeface(font(false,bold?600:400));
+        v.setIncludeFontPadding(false);v.setLineSpacing(dp(4), 1.04f);v.setTypeface(font(false,bold?500:400));
         return v;
     }
     Typeface font(boolean numeric,int weight){
@@ -55,6 +55,23 @@ final class Ui {
         GradientDrawable d = new GradientDrawable(); d.setColor(color); d.setCornerRadius(dp(radius));
         if (border) d.setStroke(dp(1), line); return d;
     }
+    RippleDrawable glassControl(boolean primary) {
+        if (GlassOptions.solidSurface(a)) return ripple(primary ? accent : soft, 16);
+        int[] colors;
+        int edge;
+        if (primary) {
+            colors = dark ? new int[]{0xffeef2f5, 0xffbcc7d0} : new int[]{0xff404b56, 0xff202830, 0xff171d24};
+            edge = dark ? 0xfff6f8fa : 0xff54616d;
+        } else {
+            colors = dark ? new int[]{0xff343d46, 0xff232930} : new int[]{0xffffffff, 0xfff5f8fa, 0xffe9eef3};
+            edge = dark ? 0xff58616b : 0xffcfd8e1;
+        }
+        GradientDrawable material = new GradientDrawable(GradientDrawable.Orientation.TL_BR, colors);
+        material.setCornerRadius(dp(16));
+        material.setStroke(dp(1), edge);
+        int feedback = primary && !dark ? 0x22ffffff : 0x1517222e;
+        return new RippleDrawable(ColorStateList.valueOf(feedback), material, shape(Color.WHITE, 16, false));
+    }
     LinearLayout card() {
         LinearLayout v = column(); v.setPadding(0, dp(12), 0, dp(12));
         v.setClipToOutline(true);
@@ -63,21 +80,21 @@ final class Ui {
     void space(LinearLayout v, int h) { View s = new View(a); v.addView(s, new LinearLayout.LayoutParams(1, dp(h))); }
     Button button(String s, boolean primary, Runnable action) {
         Button b = new Button(a); b.setText(s); b.setAllCaps(false); b.setTextSize(15); b.setTextColor(primary ? (dark?bg:Color.WHITE) : ink);
-        b.setTypeface(font(false,600)); b.setMinHeight(dp(48)); b.setMinimumHeight(dp(48));
-        b.setStateListAnimator(null);b.setIncludeFontPadding(false);b.setPadding(dp(14), dp(4), dp(14), dp(4)); b.setBackground(ripple(primary ? accent : soft, 6));
+        b.setTypeface(font(false,500)); b.setMinHeight(dp(48)); b.setMinimumHeight(dp(48));
+        b.setStateListAnimator(null);b.setIncludeFontPadding(false);b.setPadding(dp(14), dp(6), dp(14), dp(6)); b.setBackground(glassControl(primary));
         b.setOnClickListener(v -> action.run()); return b;
     }
     void grow(LinearLayout row, View v) { row.addView(v, new LinearLayout.LayoutParams(0, -2, 1)); }
     void gap(LinearLayout row, int n) { row.addView(new View(a), new LinearLayout.LayoutParams(dp(n), 1)); }
     RippleDrawable ripple(int color,int radius){return new RippleDrawable(ColorStateList.valueOf(0x18000000),shape(color,radius,false),shape(android.graphics.Color.WHITE,radius,false));}
-    View iconButton(String name,String description,Runnable action){FrameLayout box=new FrameLayout(a);box.setBackground(ripple(android.graphics.Color.TRANSPARENT,12));box.setContentDescription(description);LineIcon icon=new LineIcon(a,name,ink);FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(dp(22),dp(22),Gravity.CENTER);box.addView(icon,p);box.setOnClickListener(v->action.run());box.setLayoutParams(new LinearLayout.LayoutParams(dp(44),dp(44)));return box;}
+    View iconButton(String name,String description,Runnable action){FrameLayout box=new FrameLayout(a);box.setBackground(ripple(android.graphics.Color.TRANSPARENT,12));box.setContentDescription(description);LineIcon icon=new LineIcon(a,name,ink);FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(dp(22),dp(22),Gravity.CENTER);box.addView(icon,p);box.setOnClickListener(v->action.run());box.setLayoutParams(new LinearLayout.LayoutParams(dp(48),dp(48)));return box;}
     View iconTile(String name,int size){FrameLayout tile=new FrameLayout(a);tile.addView(new LineIcon(a,name,accent),new FrameLayout.LayoutParams(dp(size-14),dp(size-14),Gravity.CENTER));tile.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);tile.setLayoutParams(new LinearLayout.LayoutParams(dp(size),dp(size)));return tile;}
     void rule(LinearLayout box,int left){View v=new View(a);v.setBackgroundColor(line);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,dp(1));p.leftMargin=dp(left);box.addView(v,p);}
     View copyButton(String description,Runnable action){
         FrameLayout box=new FrameLayout(a);box.setContentDescription(description);box.setBackground(ripple(Color.TRANSPARENT,8));
         box.addView(new LineIcon(a,"copy",ink),new FrameLayout.LayoutParams(dp(21),dp(21),Gravity.CENTER));
         LineIcon check=new LineIcon(a,"check",ink);check.setAlpha(0);box.addView(check,new FrameLayout.LayoutParams(dp(21),dp(21),Gravity.CENTER));
-        box.setOnClickListener(v->{action.run();UiMotion.copyFeedback(box);box.announceForAccessibility("已复制");});box.setLayoutParams(new LinearLayout.LayoutParams(dp(44),dp(44)));return box;
+        box.setOnClickListener(v->{action.run();UiMotion.copyFeedback(box);box.announceForAccessibility("已复制");});box.setLayoutParams(new LinearLayout.LayoutParams(dp(48),dp(48)));return box;
     }
     void viewport(LinearLayout root,View compactHeader,View... keyboardBars){
         root.getViewTreeObserver().addOnGlobalLayoutListener(()->{
@@ -89,12 +106,15 @@ final class Ui {
         });
     }
     View bottomNav(String selected,java.util.function.Consumer<String> action){
-        final String current=NavigationModel.section(selected);
-        LinearLayout all=column();all.setBackgroundColor(bg);rule(all,0);FrameLayout frame=new FrameLayout(a);LinearLayout row=row();row.setPadding(dp(12),dp(6),dp(12),dp(8));
-        String[] ids=NavigationModel.ROOTS,names=NavigationModel.LABELS;
-        for(int i=0;i<ids.length;i++){String id=ids[i];boolean on=id.equals(current);LinearLayout cell=column();cell.setGravity(Gravity.CENTER);cell.setPadding(0,dp(5),0,dp(5));cell.setMinimumHeight(dp(54));cell.setContentDescription(names[i]);cell.setSelected(on);cell.setBackground(ripple(Color.TRANSPARENT,0));cell.addView(new LineIcon(a,id.equals("home")?"providers":id.equals("groups")?"routing":id.equals("tools")?"home":id,on?ink:muted),new LinearLayout.LayoutParams(dp(22),dp(22)));space(cell,5);TextView label=text(names[i],13,on?ink:muted,on);label.setGravity(Gravity.CENTER);cell.addView(label);cell.setOnClickListener(v->action.accept(id));row.addView(cell,new LinearLayout.LayoutParams(0,-2,1));}
-        frame.addView(row,new FrameLayout.LayoutParams(-1,-2));View marker=new View(a);marker.setBackground(shape(ink,1,false));frame.addView(marker,new FrameLayout.LayoutParams(dp(22),dp(2),Gravity.BOTTOM));
-        frame.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{int target=java.util.Arrays.asList(ids).indexOf(current);float width=(frame.getWidth()-dp(24))/(float)ids.length;marker.animate().cancel();marker.setTranslationX(dp(12)+width*target+(width-dp(22))/2f);});
-        all.addView(frame);return all;
+        String current=NavigationModel.section(selected);
+        LinearLayout row=row();row.setPadding(dp(5),dp(5),dp(5),dp(5));
+        for(int i=0;i<NavigationModel.ROOTS.length;i++){
+            String id=NavigationModel.ROOTS[i];boolean on=id.equals(current);
+            LinearLayout cell=column();cell.setGravity(Gravity.CENTER);cell.setPadding(dp(4),dp(5),dp(4),dp(5));cell.setMinimumHeight(dp(54));cell.setContentDescription(NavigationModel.LABELS[i]);cell.setSelected(on);
+            cell.setBackground(ripple(on?(dark?0x30FFFFFF:0x1117222E):Color.TRANSPARENT,26));
+            cell.addView(new LineIcon(a,id.equals("connect")?"plug":id.equals("home")?"providers":id,on?ink:muted),new LinearLayout.LayoutParams(dp(21),dp(21)));
+            space(cell,3);TextView label=text(NavigationModel.LABELS[i],12,on?ink:muted,on);label.setGravity(Gravity.CENTER);cell.addView(label);cell.setOnClickListener(v->action.accept(id));row.addView(cell,new LinearLayout.LayoutParams(0,-2,1));
+        }
+        row.setMinimumHeight(dp(64));return row;
     }
 }
