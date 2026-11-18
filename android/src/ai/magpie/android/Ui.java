@@ -6,6 +6,7 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
+import android.graphics.drawable.StateListDrawable;
 import android.content.res.ColorStateList;
 import android.view.*;
 import android.widget.*;
@@ -79,9 +80,16 @@ final class Ui {
     }
     void space(LinearLayout v, int h) { View s = new View(a); v.addView(s, new LinearLayout.LayoutParams(1, dp(h))); }
     Button button(String s, boolean primary, Runnable action) {
-        Button b = new Button(a); b.setText(s); b.setAllCaps(false); b.setTextSize(15); b.setTextColor(primary ? (dark?bg:Color.WHITE) : ink);
+        Button b = new Button(a); b.setText(s); b.setAllCaps(false); b.setTextSize(15);
+        int[] disabled = {-android.R.attr.state_enabled};
+        b.setTextColor(new ColorStateList(new int[][]{disabled, new int[0]},
+                new int[]{muted, primary ? (dark ? bg : Color.WHITE) : ink}));
         b.setTypeface(font(false,500)); b.setMinHeight(dp(48)); b.setMinimumHeight(dp(48));
-        b.setStateListAnimator(null);b.setIncludeFontPadding(false);b.setPadding(dp(14), dp(6), dp(14), dp(6)); b.setBackground(glassControl(primary));
+        b.setStateListAnimator(null);b.setIncludeFontPadding(false);b.setPadding(dp(14), dp(6), dp(14), dp(6));
+        StateListDrawable material = new StateListDrawable();
+        material.addState(disabled, shape(soft, 16, false));
+        material.addState(new int[0], glassControl(primary));
+        b.setBackground(material);
         b.setOnClickListener(v -> action.run()); return b;
     }
     void grow(LinearLayout row, View v) { row.addView(v, new LinearLayout.LayoutParams(0, -2, 1)); }

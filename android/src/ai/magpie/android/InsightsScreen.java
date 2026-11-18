@@ -337,8 +337,11 @@ final class InsightsScreen implements AppScreen {
         ui.space(body, 14);
         InsightsViews.pair(ui, body, measure("Token 总量", InsightsViews.count(totals.tokens())),
                 measure("调用", InsightsViews.count(totals.calls)));
-        ui.space(body, 12);
-        body.addView(measure("已知费用", InsightsViews.price(totals.cost, totals.unpriced)));
+        ui.space(body, 10);
+        body.addView(InsightsViews.note(ui, "费用 · " + InsightsViews.price(totals.cost, totals.unpriced)));
+        body.addView(InsightsViews.note(ui, InsightsViews.count(totals.errors) + " 次最终失败 · "
+                + InsightsViews.count(totals.canceled) + " 次取消"));
+        renderTrend(data);
         section("调用健康");
         InsightsViews.pair(ui, body,
                 measure("完成率", totals.calls == 0 ? "—" : UsageSnapshot.percent(totals.completed(), totals.calls)),
@@ -351,7 +354,6 @@ final class InsightsScreen implements AppScreen {
             body.addView(InsightsViews.action(ui, "查看有失败尝试的请求", () ->
                     drilldown(query.day(null).with("failed", "1").with("retried", ""))));
         }
-        renderTrend(data);
     }
 
     private LinearLayout measure(String name, String value) {
@@ -359,6 +361,7 @@ final class InsightsScreen implements AppScreen {
         group.addView(InsightsViews.note(ui, name));
         ui.space(group, 4);
         TextView amount = ui.text(value, 20, ui.ink, true);
+        amount.setTypeface(ui.font(true, 500));
         amount.setFontFeatureSettings("tnum");
         group.addView(amount);
         return group;
@@ -436,7 +439,15 @@ final class InsightsScreen implements AppScreen {
         section("Token 构成");
         String[] names = {"输入", "输出", "缓存读取", "缓存写入"};
         long[] values = {totals.input, totals.output, totals.cacheRead, totals.cacheWrite};
-        for (int i = 0; i < names.length; i++) statLine(names[i], InsightsViews.count(values[i]));
+        int[] colors = ui.dark ? new int[]{0xffedf2f7, 0xffb5c0cc, 0xff8998a7, 0xff65717c}
+                : new int[]{0xff202830, 0xff62717f, 0xff97a7b5, 0xffc5d0da};
+        if (totals.tokens() > 0) {
+            double[] portions = new double[values.length];
+            for (int i = 0; i < values.length; i++) portions[i] = (double) values[i] / totals.tokens();
+            body.addView(new DistributionBar(ui, portions, colors), new LinearLayout.LayoutParams(-1, ui.dp(12)));
+            ui.space(body, 8);
+        }
+        for (int i = 0; i < names.length; i++) statLine(names[i], InsightsViews.count(values[i]), colors[i]);
         Double cacheRate = totals.cacheRate();
         statLine("已知缓存命中率", cacheRate == null ? "无样本" : String.format(Locale.ROOT, "%.1f%%", 100 * cacheRate));
         if (totals.cacheUnknownCalls > 0) {
@@ -471,8 +482,18 @@ final class InsightsScreen implements AppScreen {
     }
 
     private void statLine(String label, String value) {
+        statLine(label, value, Color.TRANSPARENT);
+    }
+
+    private void statLine(String label, String value, int marker) {
         LinearLayout row = ui.row();
         row.setPadding(0, ui.dp(6), 0, ui.dp(6));
+        if (marker != Color.TRANSPARENT) {
+            View dot = new View(ui.a);
+            dot.setBackground(ui.shape(marker, 3, false));
+            row.addView(dot, new LinearLayout.LayoutParams(ui.dp(9), ui.dp(9)));
+            ui.gap(row, 9);
+        }
         ui.grow(row, InsightsViews.note(ui, label));
         TextView amount = ui.text(value, 16, ui.ink, true);
         amount.setGravity(Gravity.END);
@@ -490,6 +511,9 @@ final class InsightsScreen implements AppScreen {
             if (!query.value(dimension).isEmpty()) {
                 body.addView(InsightsViews.note(ui, "可点按其他分组切换筛选。"));
             }
+            long maximum = 0;
+            for (LedgerSnapshot.Share group : groups) maximum = Math.max(maximum, group.totals.tokens());
+            if (maximum > 0) body.addView(InsightsViews.note(ui, "条长表示与本组最高 Token 用量的比值。"));
             for (int i = 0; i < Math.min(groupLimit, groups.size()); i++) {
                 LedgerSnapshot.Share group = groups.get(i);
                 LedgerSnapshot.Totals totals = group.totals;
@@ -500,6 +524,11 @@ final class InsightsScreen implements AppScreen {
                 entry.addView(ui.text(group.name.isEmpty() ? "未记录" : group.name, 16, ui.ink, true));
                 entry.addView(InsightsViews.note(ui, InsightsViews.count(totals.tokens()) + " Token · "
                         + InsightsViews.count(totals.calls) + " 次 · " + InsightsViews.price(totals.cost, totals.unpriced)));
+                if (maximum > 0) {
+                    ui.space(entry, 7);
+                    entry.addView(new DistributionBar(ui, new double[]{(double) totals.tokens() / maximum},
+                            new int[]{ui.muted}), new LinearLayout.LayoutParams(-1, ui.dp(5)));
+                }
                 if (!group.id.isEmpty()) {
                     entry.setOnClickListener(view -> drilldown(query.day(null).with(dimension, group.id)));
                 }

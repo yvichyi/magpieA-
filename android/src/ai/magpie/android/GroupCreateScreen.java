@@ -27,6 +27,7 @@ final class GroupCreateScreen implements AppScreen {
     private final long scope;
     private final CatalogLoad.Scope origin;
     private final ScrollView scroll;
+    private final LinearLayout root;
     private final LinearLayout members;
     private final TextView feedback;
     private final EditText name;
@@ -45,8 +46,10 @@ final class GroupCreateScreen implements AppScreen {
         ui = catalog.ui;
         this.scope = scope;
         origin = catalog.repository.load.scope;
+        root = ui.column();
         scroll = CatalogViews.scroll(ui);
-        LinearLayout body = CatalogViews.body(ui, scroll, 32);
+        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        LinearLayout body = CatalogViews.body(ui, scroll, 24);
         body.addView(ui.text("分组名称", 15, ui.ink, true));
         name = new EditText(ui.a);
         name.setSingleLine(true);
@@ -75,18 +78,24 @@ final class GroupCreateScreen implements AppScreen {
         members = ui.column();
         body.addView(members);
         ui.space(body, 12);
-        save = ui.button("保存分组", true, this::save);
-        body.addView(save);
-        feedback = ui.text("", 14, ui.muted, false);
-        feedback.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-        body.addView(feedback);
         body.addView(CatalogViews.action(ui, "高级分组编辑器", () -> {
             if (!pending && valid()) catalog.host.advanced("groups", "addGroup", "true");
         }));
+        ui.rule(root, 0);
+        LinearLayout footer = ui.column();
+        footer.setBackgroundColor(ui.bg);
+        footer.setPadding(ui.dp(20), ui.dp(10), ui.dp(20), ui.dp(14));
+        root.addView(footer);
+        save = ui.button("保存分组", true, this::save);
+        footer.addView(save);
+        feedback = ui.text("", 14, ui.muted, false);
+        feedback.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        feedback.setVisibility(View.GONE);
+        footer.addView(feedback);
         modelsChanged();
     }
 
-    @Override public View view() { return scroll; }
+    @Override public View view() { return root; }
     @Override public void onResume() { active = true; catalog.repository.resume(observer); }
     @Override public void onPause() { active = false; catalog.repository.pause(observer); }
 
@@ -99,7 +108,7 @@ final class GroupCreateScreen implements AppScreen {
                 if (group.group.id.equals(id)) {
                     uncertain = false;
                     saved = true;
-                    feedback.setText("分组已保存，可返回查看。");
+                    message("分组已保存，可返回查看。");
                     break;
                 }
             }
@@ -136,23 +145,23 @@ final class GroupCreateScreen implements AppScreen {
         if (pending || uncertain || saved || !valid()) return;
         String label = name.getText().toString().trim();
         if (label.isEmpty() || label.length() > 100) { name.setError("请输入 1–100 字的分组名称"); return; }
-        if (selected.isEmpty()) { feedback.setText("至少选择一个模型。"); return; }
+        if (selected.isEmpty()) { message("至少选择一个模型。"); return; }
         CatalogData data = catalog.repository.load.data;
         for (String ref : selected) {
             CatalogData.Model model = data == null ? null : data.model(ref);
-            if (model == null || !model.connectable) { feedback.setText("有成员已不可接入，请更新选择。"); return; }
+            if (model == null || !model.connectable) { message("有成员已不可接入，请更新选择。"); return; }
         }
         final String payload;
         try {
             payload = new JSONObject().put("id", id).put("name", label)
                     .put("routing", ROUTING[strategy]).put("members", new JSONArray(selected)).toString();
         } catch (Exception invalid) {
-            feedback.setText("分组内容无效。");
+            message("分组内容无效。");
             return;
         }
         pending = true;
         save.setEnabled(false);
-        feedback.setText("正在保存分组…");
+        message("正在保存分组…");
         new Thread(() -> {
             String status = "保存结果待确认。请返回分组目录刷新查看。";
             boolean confirmed = false, definitive = false;
@@ -174,12 +183,17 @@ final class GroupCreateScreen implements AppScreen {
                     Toast.makeText(ui.a, "分组已保存", Toast.LENGTH_SHORT).show();
                     ui.a.onBackPressed();
                 } else {
-                    feedback.setText(message);
+                    message(message);
                     save.setEnabled(failed);
                     if (uncertain) catalog.repository.refresh();
                 }
             });
         }, "magpie-group-save").start();
+    }
+
+    private void message(String text) {
+        feedback.setText(text);
+        feedback.setVisibility(View.VISIBLE);
     }
 
     @Override public boolean onBack() {

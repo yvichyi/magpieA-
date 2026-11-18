@@ -91,6 +91,10 @@ public final class NativePreviewAcceptance extends Instrumentation {
                 back();
             } else if (mode.equals("glass")) {
                 testGlassBackdrop();
+            } else if (mode.equals("stats")) {
+                capture("04-connection");
+                testInsights(true);
+                testSettings();
             }
             Bundle result = new Bundle();
             result.putString("stream", "PASS preview " + mode + "\n");
@@ -176,13 +180,16 @@ public final class NativePreviewAcceptance extends Instrumentation {
         if (exists("返回上一页", false, true)) back();
         click("分组");
         click("新建分组");
-        fill("分组名称", "预览验证分组");
+        String groupName = "预览验证分组 " + Long.toString(System.currentTimeMillis(), 36);
+        fill("分组名称", groupName);
         clickContains(reference);
         capture("06-group-create");
         click("保存分组");
-        awaitText("预览验证分组", 45_000);
-        clickContains("预览验证分组");
+        await(() -> !exists("保存分组", false, false), 45_000, "Group form did not finish saving");
+        awaitText(groupName, 45_000);
+        clickContains(groupName);
         awaitText("固定成员", 30_000);
+        awaitText(reference, 20_000);
         capture("07-group-detail");
         back();
         stage("NATIVE_GROUP_SAVE_AND_MEMBERS");

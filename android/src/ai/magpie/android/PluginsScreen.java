@@ -343,7 +343,7 @@ final class PluginsScreen implements AppScreen {
             String version = item.version().isEmpty() ? "" : "v" + item.version();
             String update = item.updateAvailable() ? "有更新" : "";
             row(results, "plug", item.name(), item.spec(), join(label, version, item.kind(), update),
-                    () -> open(PluginDetailScreen.installed(this, item.spec(), scope), item.name()));
+                    () -> open(PluginDetailScreen.installed(this, item.spec(), scope)));
         }
         more(results, entries.size());
     }
@@ -383,7 +383,7 @@ final class PluginsScreen implements AppScreen {
             PluginSnapshot.Discovery item = items.get(i);
             String state = installed.value != null && installed.value.match(item) != null ? "已安装" : "";
             row(results, "plug", item.name(), item.description().isEmpty() ? item.spec() : item.description(),
-                    join(state, item.kindLabel(), item.source()), () -> open(PluginDetailScreen.discovery(this, item, scope), item.name()));
+                    join(state, item.kindLabel(), item.source()), () -> open(PluginDetailScreen.discovery(this, item, scope)));
         }
         if (items.isEmpty() && !empty.isEmpty()) note(results, empty, false);
         more(results, items.size());
@@ -398,7 +398,7 @@ final class PluginsScreen implements AppScreen {
             if (!item.broken().isEmpty()) state = join(state, "配置只读");
             else if (item.inUse() > 0) state = join(state, "使用中");
             row(results, "settings", item.name(), item.description(), state,
-                    () -> open(PluginDetailScreen.builtin(this, item.id(), scope), item.name()));
+                    () -> open(PluginDetailScreen.builtin(this, item.id(), scope)));
         }
     }
 
@@ -456,8 +456,8 @@ final class PluginsScreen implements AppScreen {
         });
     }
 
-    private void open(AppScreen screen, String title) {
-        if (current(scope) && ready()) host.openDetail(cap(title, 90), screen);
+    private void open(AppScreen screen) {
+        if (current(scope) && ready()) host.openDetail("插件详情", screen);
     }
 
     private void installDialog() {
