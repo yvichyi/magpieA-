@@ -24,6 +24,12 @@ public final class PluginSnapshotTest {
         check(!PluginSnapshot.newer("1.2.0-beta.2", "1.2.0-beta.10"), "numeric prerelease ordering");
         check(PluginSnapshot.newer("1.2.0", "1.2.0-rc.1"), "stable after prerelease");
         check(!PluginSnapshot.newer("1.2.0+build2", "1.2.0+build1"), "build metadata never an update");
+        var update = PluginSnapshot.checked("""
+                {"plugins":[{"spec":"ok@latest","status":"update","latest":"2.1.0"},{"spec":"other","status":"unknown"}],
+                 "state":{"plugins":[{"spec":"ok@latest","version":"2.0.0","latest":"2.0.0"},{"spec":"other","version":"1.0.0"}]}}
+                """);
+        check(update.available() == 1 && update.unknown() == 1 && update.state().find("ok@latest").updateAvailable(),
+                "manual check preserves newly reported version and unknown results");
 
         var listings = PluginSnapshot.discovery("""
                 {"listings":[{"package":"@demo/plugin","name":"Demo","community":true,"kind":"page",

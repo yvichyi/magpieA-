@@ -83,6 +83,8 @@ class Fixture(BaseHTTPRequestHandler):
         version = {'name': PLUGIN, 'version': ver, 'type': 'module', 'main': 'index.js',
                    'dist': {'tarball': f'{origin}/{PLUGIN}/-/{PLUGIN}-{ver}.tgz',
                             'shasum': hashlib.sha1(archive).hexdigest()}}
+        if self.path.split('?', 1)[0].endswith('/latest'):
+            return self.reply(version)
         return self.reply({'name': PLUGIN, 'description': 'Android SDK preview fixture',
                            'dist-tags': {'latest': ver}, 'versions': {ver: version}})
 

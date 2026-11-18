@@ -82,6 +82,32 @@ final class PluginSnapshot {
     }
 
     record Discoveries(List<Discovery> entries, String error) {}
+    record UpdateCheck(Installed state, int available, int unknown) {}
+
+    static UpdateCheck checked(String raw) throws JSONException {
+        JSONObject response = new JSONObject(raw);
+        JSONObject state = response.getJSONObject("state");
+        JSONArray plugins = state.getJSONArray("plugins");
+        JSONArray checks = response.getJSONArray("plugins");
+        java.util.Map<String, JSONObject> bySpec = new java.util.HashMap<>();
+        int available = 0, unknown = 0;
+        for (int i = 0; i < checks.length(); i++) {
+            JSONObject item = checks.getJSONObject(i);
+            bySpec.put(item.getString("spec"), item);
+            String status = item.optString("status");
+            if (status.equals("update") && !item.optBoolean("off")) available++;
+            if (status.equals("unknown")) unknown++;
+        }
+        for (int i = 0; i < plugins.length(); i++) {
+            JSONObject entry = plugins.getJSONObject(i);
+            JSONObject result = bySpec.get(entry.getString("spec"));
+            if (result == null) continue;
+            if (result.has("latest")) entry.put("latest", result.getString("latest"));
+            if (result.has("head")) entry.put("head", result.getString("head"));
+        }
+        return new UpdateCheck(installed(state.toString()), available, unknown);
+    }
+
     record Page(String spec, String key, String title) {}
     record Builtin(String id, String name, String description, boolean on, boolean chosen, int inUse, String use,
                    String why, String broken, String destination, String settings, List<Field> fields,

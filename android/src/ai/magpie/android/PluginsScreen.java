@@ -52,7 +52,7 @@ final class PluginsScreen implements AppScreen {
     private final Resource<PluginSnapshot.Discoveries> listings = new Resource<>();
     private final Resource<PluginSnapshot.Discoveries> github = new Resource<>();
     private final Resource<PluginSnapshot.Discoveries> search = new Resource<>();
-    private final Resource<PluginSnapshot.Installed> updates = new Resource<>();
+    private final Resource<PluginSnapshot.UpdateCheck> updates = new Resource<>();
     private final Resource<?>[] resources = {installed, builtins, pages, listings, github, search, updates};
     private final Runnable poll = this::poll;
     private Scope scope;
@@ -336,7 +336,12 @@ final class PluginsScreen implements AppScreen {
         check.setEnabled(!updates.pending);
         results.addView(check);
         if (!updates.error.isEmpty()) note(results, "检查更新失败：" + updates.error, true);
-        List<PluginSnapshot.Entry> entries = (updates.value == null ? data : updates.value).entries();
+        if (updates.value != null) {
+            String summary = updates.value.available() == 0 ? "已完成版本检查" : updates.value.available() + " 个插件有更新";
+            if (updates.value.unknown() > 0) summary += " · " + updates.value.unknown() + " 个插件未查到版本";
+            note(results, summary, updates.value.unknown() > 0);
+        }
+        List<PluginSnapshot.Entry> entries = (updates.value == null ? data : updates.value.state()).entries();
         for (int i = 0; i < Math.min(limit, entries.size()); i++) {
             PluginSnapshot.Entry item = entries.get(i);
             String label = item.off() ? "已停用" : item.error().isEmpty() ? "已启用" : "加载出错";
@@ -450,10 +455,7 @@ final class PluginsScreen implements AppScreen {
 
     private void checkUpdates() {
         if (!ready() || !current(scope) || installed.value == null) return;
-        read(updates, POLL, true, api -> {
-            JSONObject checked = new JSONObject(api.post("/api/plugins/check", "{}"));
-            return PluginSnapshot.installed(checked.getJSONObject("state").toString());
-        });
+        read(updates, POLL, true, api -> PluginSnapshot.checked(api.post("/api/plugins/check", "{}")));
     }
 
     private void open(AppScreen screen) {
@@ -598,7 +600,7 @@ final class PluginsScreen implements AppScreen {
     }
 
     PluginSnapshot.Entry entry(String spec) {
-        PluginSnapshot.Installed data = updates.value == null ? installed.value : updates.value;
+        PluginSnapshot.Installed data = updates.value == null ? installed.value : updates.value.state();
         return data == null ? null : data.find(spec);
     }
 
