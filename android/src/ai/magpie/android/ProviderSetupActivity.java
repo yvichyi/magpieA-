@@ -50,7 +50,7 @@ public final class ProviderSetupActivity extends Activity {
     @Override protected void onSaveInstanceState(Bundle out){capture();out.putString("id",state.draft.id);out.putString("url",state.draft.url);out.putString("name",state.draft.name);out.putString("manual",state.draft.manual);out.putInt("protocol",state.draft.protocol);out.putBoolean("saving",state.saving||state.uncertain);super.onSaveInstanceState(out);}
     private EditText field(LinearLayout box,String label,String hint,String value,boolean secret){
         box.addView(ui.text(label,13,ui.muted,false));ui.space(box,6);
-        EditText e=new EditText(this);e.setTextSize(16);e.setTypeface(ui.font(false,400));e.setTextColor(ui.ink);e.setHintTextColor(ui.muted);e.setHint(hint);e.setContentDescription(label);e.setSingleLine();e.setMinHeight(ui.dp(48));e.setPadding(ui.dp(12),ui.dp(10),ui.dp(12),ui.dp(10));e.setBackground(ui.shape(ui.soft,4,false));e.setSaveEnabled(false);
+        EditText e=new EditText(this);e.setTextSize(16);e.setTypeface(ui.font(false,400));e.setTextColor(ui.ink);e.setHintTextColor(ui.muted);e.setHint(hint);e.setContentDescription(label);e.setSingleLine();e.setMinHeight(ui.dp(48));e.setPadding(ui.dp(12),ui.dp(10),ui.dp(12),ui.dp(10));e.setBackground(ui.shape(ui.card,12,true));e.setSaveEnabled(false);
         e.setInputType(android.text.InputType.TYPE_CLASS_TEXT|(secret?android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD:android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS));e.setTypeface(ui.font(false,400));e.setIncludeFontPadding(false);e.setText(value);box.addView(e,new LinearLayout.LayoutParams(-1,-2));ui.space(box,18);controls.add(e);return e;
     }
     private void build(){

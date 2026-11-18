@@ -7,7 +7,10 @@ final class AppNavigation {
  static boolean remote(Context c){return c.getSharedPreferences("host",0).getBoolean("remote",false);}
  static String origin(Context c){return remote(c)?c.getSharedPreferences("host",0).getString("remoteAddress",""):GatewayService.managementOrigin;}
  static String key(Context c){return remote(c)?c.getSharedPreferences("host",0).getString("remoteKey",""):GatewayService.key(c);}
- static String workspace(Context c){return ModelFavorites.scope(remote(c),c.getSharedPreferences("host",0).getString("remoteAddress",""));}
+ static String workspace(Context c){
+  try{return ModelFavorites.scope(remote(c),c.getSharedPreferences("host",0).getString("remoteAddress",""));}
+  catch(IllegalArgumentException invalid){return "remote:unconfigured";}
+ }
  static boolean ready(Context c){return remote(c)||GatewayService.ready;}
  static String currentRoot(Activity a){if(a instanceof MainActivity)return ((MainActivity)a).currentRootId();if(a instanceof UsageActivity)return "usage";String p=a.getIntent().getStringExtra("parentRoot");return p==null?"connect":NavigationModel.section(p);}
  static void primary(Activity a,String id){

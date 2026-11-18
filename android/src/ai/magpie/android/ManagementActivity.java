@@ -221,7 +221,7 @@ public final class ManagementActivity extends Activity {
     }
     private String viewName(String view){
         String label=getIntent().getStringExtra("pageTitle");
-        if(view.equals(getIntent().getStringExtra("view"))&&label!=null&&!label.isBlank())return label;
+        if(view.equals(getIntent().getStringExtra("view"))&&label!=null&&!label.trim().isEmpty())return label;
         if(view.equals("usage"))return "请求明细与导出";
         String known=NavigationModel.title(view);
         return known.equals("扩展页面")?pageTitles.getOrDefault(view,known):known;

@@ -405,7 +405,8 @@ final class CatalogScreen implements AppScreen {
         }
         dismissKeyboard();
         if (workspace.selected == GROUPS) {
-            host.advanced("groups", "addGroup", "true");
+            if (shown == null || shownFailed) { repository.refresh(); return; }
+            host.openDetail("新建分组", new GroupCreateScreen(this, scope));
         } else {
             setupScope = repository.load.scope;
             UiMotion.result(host.activity(), new Intent(host.activity(), ProviderSetupActivity.class)

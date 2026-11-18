@@ -11,4 +11,5 @@
 <instrumentation android:name="ai.magpie.android.NativeNavigationAcceptance" android:targetPackage="ai.magpie.android" />
 <instrumentation android:name="ai.magpie.android.NativeEmbeddedAcceptance" android:targetPackage="ai.magpie.android" />
 <instrumentation android:name="ai.magpie.android.NativeHeatmapAcceptance" android:targetPackage="ai.magpie.android" />
+<instrumentation android:name="ai.magpie.android.NativePreviewAcceptance" android:targetPackage="ai.magpie.android" />
 </manifest>

@@ -18,8 +18,8 @@ public final class CoreApiPostTest {
    try{api.post("/api/provider/save","redirect");throw new AssertionError("Authenticated mutation followed redirect");}catch(java.io.IOException expected){}
    try{api.post("/api/provider/save","drop");throw new AssertionError("Connection loss after request body became success");}catch(java.io.IOException expected){}
    for(String p:new String[]{"/api/provider/remove","//other","/api/provider/save?next=evil","/api/provider/list/../save"}){try{api.post(p,body);throw new AssertionError("Mutation allowlist bypass");}catch(IllegalArgumentException expected){}}
-   for(String path:new String[]{"/api/plugins/add","/api/plugins/upgrade","/api/plugins/off","/api/plugins/builtin","/api/plugins/check"})if(!api.post(path,body).equals(body))throw new AssertionError("Plugin write payload lost");
-   if(writes.get()!=8)throw new AssertionError("Mutation replayed or arbitrary endpoint called");
+   for(String path:new String[]{"/api/plugins/add","/api/plugins/upgrade","/api/plugins/off","/api/plugins/builtin","/api/plugins/check","/api/groups/save"})if(!api.post(path,body).equals(body))throw new AssertionError("Plugin write payload lost");
+   if(writes.get()!=9)throw new AssertionError("Mutation replayed or arbitrary endpoint called");
    System.out.println("CoreApiPost: exact authenticated UTF8, same-origin header, strict mutation allowlist, refused redirect and no replay passed");
   }finally{s.stop(0);}
  }

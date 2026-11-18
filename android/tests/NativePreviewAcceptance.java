@@ -1,0 +1,448 @@
+package ai.magpie.android;
+
+import android.app.Activity;
+import android.app.Application;
+import android.app.Instrumentation;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
+import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.Rect;
+import android.os.Bundle;
+import android.os.SystemClock;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.accessibility.AccessibilityNodeInfo;
+import android.widget.EditText;
+import android.widget.TextView;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+/** Installed preview smoke test using a real bundled core and loopback-only fixtures. */
+public final class NativePreviewAcceptance extends Instrumentation {
+    private final AtomicReference<Activity> resumed = new AtomicReference<>();
+    private Context target;
+    private String fixture, mode, plugin;
+    private File screenshots;
+    private MainActivity home;
+    private CoreApi core;
+    private String reference;
+
+    @Override public void onCreate(Bundle args) {
+        super.onCreate(args);
+        fixture = args.getString("fixture", "");
+        mode = args.getString("mode", "flow");
+        plugin = args.getString("plugin", "magpie-android-preview-fixture");
+        start();
+    }
+
+    @Override public void onStart() {
+        try {
+            require(fixture.startsWith("http://127.0.0.1:"), "Loopback fixture only");
+            target = getTargetContext();
+            screenshots = new File(target.getFilesDir(), "preview-evidence/" + mode);
+            require(screenshots.isDirectory() || screenshots.mkdirs(), "Cannot store evidence");
+            target.getSharedPreferences("host", 0).edit().putBoolean("launched", true)
+                    .putBoolean("askedNotifications", true).putBoolean("remote", false).commit();
+            ((Application) target.getApplicationContext()).registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
+                @Override public void onActivityResumed(Activity activity) { resumed.set(activity); }
+                @Override public void onActivityCreated(Activity activity, Bundle state) {}
+                @Override public void onActivityStarted(Activity activity) {}
+                @Override public void onActivityPaused(Activity activity) {}
+                @Override public void onActivityStopped(Activity activity) {}
+                @Override public void onActivitySaveInstanceState(Activity activity, Bundle state) {}
+                @Override public void onActivityDestroyed(Activity activity) {}
+            });
+            home = (MainActivity) startActivitySync(new Intent(target, MainActivity.class)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
+            if (!GatewayService.ready) click("启动网关");
+            await(() -> GatewayService.ready, 180_000, "Bundled gateway did not start");
+            core = new CoreApi(GatewayService.managementOrigin, GatewayService.key(target));
+            require(core.get("/api/providers").contains("android-preview-preserved"), "1.12 provider absent after upgrade");
+            stage("UPGRADE_PROVIDER_RETAINED");
+            if (mode.equals("flow")) {
+                addProvider();
+                testConnection();
+                createGroup();
+                testPlugin();
+                testInsights(true);
+                testSettings();
+            } else if (mode.equals("small")) {
+                capture("01-connect-large");
+                click("模型");
+                visible("搜索模型");
+                capture("02-models-large");
+                click("插件");
+                visible("从 npm 安装");
+                capture("03-plugins-large");
+                testInsights(false);
+                click("打开设置");
+                waitActivity(ToolsActivity.class);
+                capture("08-settings-large");
+                back();
+            } else if (mode.equals("glass")) {
+                testGlassBackdrop();
+            }
+            Bundle result = new Bundle();
+            result.putString("stream", "PASS preview " + mode + "\n");
+            finish(Activity.RESULT_OK, result);
+        } catch (Throwable error) {
+            try { capture("failure"); } catch (Throwable ignored) {}
+            Bundle result = new Bundle();
+            result.putString("stream", android.util.Log.getStackTraceString(error));
+            finish(Activity.RESULT_CANCELED, result);
+        }
+    }
+
+    private void addProvider() throws Exception {
+        click("模型");
+        click("添加服务商");
+        waitActivity(ProviderSetupActivity.class);
+        capture("01-provider-setup");
+        fill("服务商地址", fixture + "/v1");
+        fill("API Key", "local-fixture");
+        fill("名称（可选）", "预览测试来源");
+        click("读取模型");
+        awaitText("preview-echo", 60_000);
+        click("全选");
+        click("保存并查看模型");
+        waitActivity(MainActivity.class);
+        JSONArray sources = new JSONObject(core.get("/api/providers")).getJSONArray("providers");
+        for (int i = 0; i < sources.length(); i++) {
+            JSONObject source = sources.getJSONObject(i);
+            if (source.optString("name").equals("预览测试来源")) reference = source.getString("id") + "/preview-echo";
+        }
+        require(reference != null, "Native form did not save fixture provider");
+        awaitText(reference, 40_000);
+        capture("02-model-directory");
+        clickContains(reference);
+        awaitText("模型详情", 20_000);
+        capture("03-model-detail");
+        click("使用此目标接入");
+        awaitText(reference, 30_000);
+        stage("NATIVE_PROVIDER_FORM_AND_MODEL_DETAIL");
+    }
+
+    private void testConnection() throws Exception {
+        capture("04-connection");
+        click("复制接入配置");
+        ui(() -> {
+            ClipboardManager clipboard = target.getSystemService(ClipboardManager.class);
+            ClipData data = clipboard.getPrimaryClip();
+            require(data != null && data.getItemAt(0).coerceToText(target).toString().contains(reference), "Config did not copy exact model ID");
+        });
+        for (String protocol : new String[]{"OpenAI", "Anthropic", "Gemini"}) {
+            if (!protocol.equals("OpenAI")) click(protocol);
+            click("测试调用");
+            awaitText(protocol + " 已收到响应", 55_000);
+        }
+        capture("05-connection-test");
+        stage("THREE_ACTUAL_PROTOCOLS_AND_CLIPBOARD");
+    }
+
+    private void createGroup() throws Exception {
+        click("模型");
+        if (exists("返回上一页", false, true)) back();
+        click("分组");
+        click("新建分组");
+        fill("分组名称", "预览验证分组");
+        clickContains(reference);
+        capture("06-group-create");
+        click("保存分组");
+        awaitText("预览验证分组", 45_000);
+        clickContains("预览验证分组");
+        awaitText("固定成员", 30_000);
+        capture("07-group-detail");
+        back();
+        stage("NATIVE_GROUP_SAVE_AND_MEMBERS");
+    }
+
+    private void testPlugin() throws Exception {
+        click("插件");
+        awaitText("Bun", 45_000);
+        capture("08-plugins");
+        click("从 npm 安装");
+        waitAccessibility("从 npm 安装", 12_000);
+        accessibilityFill(plugin);
+        accessibilityClick("安装", 15_000);
+        awaitText("安装完成", 330_000);
+        capture("09-plugin-installed");
+        clickContains(plugin);
+        awaitText("停用插件", 30_000);
+        capture("10-plugin-detail");
+        click("停用插件");
+        accessibilityClick("停用", 20_000);
+        awaitText("启用插件", 40_000);
+        click("启用插件");
+        accessibilityClick("启用", 20_000);
+        awaitText("停用插件", 40_000);
+        stage("REAL_NPM_INSTALL_ENABLE_DISABLE");
+        back();
+        localGet("/_advance");
+        click("检查更新");
+        awaitText("有更新", 75_000);
+        clickContains(plugin);
+        click("更新插件");
+        accessibilityClick("更新", 20_000);
+        awaitText("更新完成", 330_000);
+        require(core.get("/api/plugins").contains("1.0.2"), "Plugin update not confirmed by core");
+        capture("11-plugin-updated");
+        back();
+        stage("REAL_PLUGIN_UPGRADE");
+    }
+
+    private void testInsights(boolean details) throws Exception {
+        click("用量");
+        awaitText("用量概览", 40_000);
+        capture("12-usage-overview");
+        click("分析");
+        awaitText("用量分析", 35_000);
+        capture("13-usage-analysis");
+        click("日历");
+        awaitText("每日用量", 35_000);
+        capture("14-usage-calendar");
+        click("请求");
+        awaitText("条匹配记录", 35_000);
+        capture("15-requests");
+        if (!details) return;
+        clickContains("preview-echo");
+        awaitText("请求明细", 30_000);
+        capture("16-request-detail");
+        back();
+        awaitText("条匹配记录", 20_000);
+        click("导出筛选结果 CSV");
+        accessibilityClick("Save", "保存", 40_000);
+        stage("LEDGER_DRILLDOWN_AND_DOCUMENT_EXPORT");
+        await(() -> resumed.get() == home, 25_000, "Export returned to another screen");
+    }
+
+    private void testSettings() throws Exception {
+        click("打开设置");
+        waitActivity(ToolsActivity.class);
+        capture("17-settings");
+        back();
+        waitActivity(MainActivity.class);
+        awaitText("条匹配记录", 30_000);
+        stage("SETTINGS_RETURN_PRESERVES_REQUEST_LIST");
+    }
+
+    private void testGlassBackdrop() throws Exception {
+        AtomicReference<GlassFrame> frame = new AtomicReference<>();
+        AtomicReference<View> source = new AtomicReference<>();
+        ui(() -> {
+            target.getSharedPreferences("host", 0).edit().putBoolean("reduceTransparency", false)
+                    .putBoolean("reduceMotion", false).putBoolean("glassEnabled", true).commit();
+            GlassFrame glass = new GlassFrame(home);
+            View scene = new View(home);
+            scene.setBackgroundColor(0xff278748);
+            glass.setScene(scene);
+            glass.setDock(new View(home));
+            home.setContentView(glass);
+            frame.set(glass);
+            source.set(scene);
+        });
+        await(() -> frame.get().getChildAt(1).getHeight() >= 48, 20_000, "Glass probe did not lay out");
+        Bitmap first = screenshot();
+        int[] xy = new int[2];
+        ui(() -> {
+            View dock = frame.get().getChildAt(1);
+            dock.getLocationOnScreen(xy);
+            xy[0] += dock.getWidth() / 2;
+            xy[1] += dock.getHeight() / 2;
+            source.get().setBackgroundColor(0xff3d46b8);
+        });
+        Bitmap second = screenshot();
+        int before = first.getPixel(xy[0], xy[1]), after = second.getPixel(xy[0], xy[1]);
+        first.recycle();
+        second.recycle();
+        java.lang.reflect.Field mode = GlassFrame.class.getDeclaredField("mode");
+        mode.setAccessible(true);
+        require(mode.get(frame.get()) == GlassPolicy.Mode.REFRACT, "AGSL is unavailable under current SDK renderer settings");
+        require(before != after, "Dock does not sample the changing native backdrop");
+        stage("API35_REAL_AGSL_BACKDROP_CHANGES_PIXELS");
+    }
+
+    private void localGet(String path) throws Exception {
+        HttpURLConnection connection = (HttpURLConnection) new URL(fixture + path).openConnection();
+        connection.setConnectTimeout(5000);
+        connection.setReadTimeout(5000);
+        try { require(connection.getResponseCode() == 200, "Fixture update failed"); }
+        finally { connection.disconnect(); }
+    }
+
+    private void waitActivity(Class<?> type) throws Exception {
+        await(() -> resumed.get() != null && type.isInstance(resumed.get()) && decor().hasWindowFocus(), 45_000, "Expected " + type.getSimpleName());
+    }
+
+    private View decor() { return resumed.get().getWindow().getDecorView(); }
+
+    private void back() { ui(() -> resumed.get().onBackPressed()); }
+
+    private void click(String label) throws Exception { click(label, false); }
+    private void clickContains(String label) throws Exception { click(label, true); }
+
+    private void click(String label, boolean partial) throws Exception {
+        await(() -> exists(label, partial, true), 45_000, "Control unavailable: " + label);
+        ui(() -> {
+            View action = find(decor(), label, partial, true);
+            require(action != null, "Control moved: " + label);
+            action.requestRectangleOnScreen(new Rect(0, 0, action.getWidth(), action.getHeight()), true);
+            action.performClick();
+        });
+    }
+
+    private void visible(String label) throws Exception {
+        await(() -> {
+            View view = find(decor(), label, false, false);
+            Rect rect = new Rect();
+            return view != null && view.getGlobalVisibleRect(rect) && rect.height() >= view.getHeight() - 1;
+        }, 25_000, "Clipped control: " + label);
+    }
+
+    private void fill(String description, String value) throws Exception {
+        await(() -> input(decor(), description) != null, 25_000, "Input missing: " + description);
+        ui(() -> input(decor(), description).setText(value));
+    }
+
+    private static EditText input(View view, String description) {
+        if (view instanceof EditText && description.equals(view.getContentDescription())) return (EditText) view;
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                EditText found = input(group.getChildAt(i), description);
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
+    private void awaitText(String label, long timeout) throws Exception {
+        await(() -> exists(label, true, false), timeout, "Missing visible text: " + label);
+    }
+
+    private boolean exists(String label, boolean partial, boolean clickable) {
+        return resumed.get() != null && find(decor(), label, partial, clickable) != null;
+    }
+
+    private static View find(View view, String value, boolean partial, boolean clickable) {
+        if (view.getVisibility() != View.VISIBLE) return null;
+        CharSequence label = view.getContentDescription();
+        CharSequence text = view instanceof TextView ? ((TextView) view).getText() : null;
+        if (matches(label, value, partial) || matches(text, value, partial)) {
+            View selected = view;
+            while (clickable && !selected.isClickable() && selected.getParent() instanceof View) selected = (View) selected.getParent();
+            if (!clickable || (selected.isClickable() && selected.isEnabled())) return selected;
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                View result = find(group.getChildAt(i), value, partial, clickable);
+                if (result != null) return result;
+            }
+        }
+        return null;
+    }
+
+    private static boolean matches(CharSequence text, String value, boolean partial) {
+        return text != null && (partial ? text.toString().contains(value) : value.contentEquals(text));
+    }
+
+    private void accessibilityClick(String label, long timeout) throws Exception {
+        accessibilityClick(label, label, timeout);
+    }
+
+    private void accessibilityClick(String first, String second, long timeout) throws Exception {
+        long end = SystemClock.elapsedRealtime() + timeout;
+        while (SystemClock.elapsedRealtime() < end) {
+            AccessibilityNodeInfo root = getUiAutomation().getRootInActiveWindow();
+            if (root != null) for (String label : new String[]{first, second}) {
+                for (AccessibilityNodeInfo node : root.findAccessibilityNodeInfosByText(label)) {
+                    if (node.getText() != null && label.equalsIgnoreCase(node.getText().toString())
+                            && node.isEnabled() && node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return;
+                }
+            }
+            Thread.sleep(250);
+        }
+        throw new AssertionError("Dialog action unavailable: " + first);
+    }
+
+    private void accessibilityFill(String value) throws Exception {
+        long end = SystemClock.elapsedRealtime() + 15_000;
+        while (SystemClock.elapsedRealtime() < end) {
+            AccessibilityNodeInfo root = getUiAutomation().getRootInActiveWindow();
+            AccessibilityNodeInfo editable = editable(root);
+            if (editable != null) {
+                Bundle text = new Bundle();
+                text.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, value);
+                if (editable.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, text)) return;
+            }
+            Thread.sleep(200);
+        }
+        throw new AssertionError("Plugin dialog package input missing");
+    }
+
+    private static AccessibilityNodeInfo editable(AccessibilityNodeInfo node) {
+        if (node == null || !node.isVisibleToUser()) return null;
+        if (node.isEditable()) return node;
+        for (int i = 0; i < node.getChildCount(); i++) {
+            AccessibilityNodeInfo child = editable(node.getChild(i));
+            if (child != null) return child;
+        }
+        return null;
+    }
+
+    private void waitAccessibility(String label, long timeout) throws Exception {
+        long end = SystemClock.elapsedRealtime() + timeout;
+        while (SystemClock.elapsedRealtime() < end) {
+            AccessibilityNodeInfo root = getUiAutomation().getRootInActiveWindow();
+            if (root != null && !root.findAccessibilityNodeInfosByText(label).isEmpty()) return;
+            Thread.sleep(200);
+        }
+        throw new AssertionError("Dialog missing: " + label);
+    }
+
+    private Bitmap screenshot() throws Exception {
+        getUiAutomation().waitForIdle(250, 10_000);
+        Thread.sleep(900);
+        Bitmap bitmap = getUiAutomation().takeScreenshot();
+        require(bitmap != null, "Screenshot unavailable");
+        return bitmap;
+    }
+
+    private void capture(String name) throws Exception {
+        Bitmap bitmap = screenshot();
+        try (FileOutputStream out = new FileOutputStream(new File(screenshots, name + ".png"))) {
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out);
+        } finally { bitmap.recycle(); }
+    }
+
+    private void stage(String name) {
+        Bundle trace = new Bundle();
+        trace.putString("stream", name + "\n");
+        sendStatus(1, trace);
+    }
+
+    private void ui(Runnable action) { runOnMainSync(action); }
+
+    private void await(BooleanSupplier condition, long timeout, String failure) throws Exception {
+        long end = SystemClock.elapsedRealtime() + timeout;
+        AtomicReference<Boolean> accepted = new AtomicReference<>(false);
+        do {
+            ui(() -> accepted.set(condition.getAsBoolean()));
+            if (accepted.get()) return;
+            Thread.sleep(160);
+        } while (SystemClock.elapsedRealtime() < end);
+        throw new AssertionError(failure);
+    }
+
+    private static void require(boolean condition, String message) {
+        if (!condition) throw new AssertionError(message);
+    }
+}

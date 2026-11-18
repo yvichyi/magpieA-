@@ -194,13 +194,13 @@ body.magpie-android #view-settings .set-head {
 body.magpie-android #view-settings {
   padding-left:20px; padding-right:20px;
 }
-body.magpie-android #setTabs {
+body.magpie-android #view-settings #setTabs {
   display:flex; flex-wrap:wrap; align-items:stretch; gap:3px;
   padding:4px; border-radius:17px; border:1px solid var(--android-rim,var(--line));
   background:var(--android-glass,var(--card)); backdrop-filter:blur(12px) saturate(112%);
   box-shadow:inset 0 1px 0 var(--android-glint,transparent);
 }
-body.magpie-android #setTabs button {
+body.magpie-android #view-settings #setTabs button:not([hidden]) {
   flex:1 1 auto; min-height:48px; max-width:100%; white-space:normal;
   border-radius:12px; padding:6px 10px;
 }
@@ -214,7 +214,7 @@ body.magpie-android :is(.modal .dialog, dialog) {
   box-shadow:inset 0 1px 0 var(--android-glint,transparent), 0 10px 35px rgba(22,31,42,.12);
 }
 body.magpie-android .modal .editor { background:var(--card); }
-body.magpie-android.android-solid :is(#setTabs,.modal .dialog,dialog) {
+body.magpie-android.android-solid :is(#view-settings #setTabs,.modal .dialog,dialog) {
   backdrop-filter:none; background:var(--card);
 }
 body.magpie-android.android-still *, body.magpie-android.android-still *::before,

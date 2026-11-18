@@ -43,7 +43,7 @@ public final class ToolsActivity extends Activity {
     private boolean active, busy, wasReady;
     private int generation;
     private WorkspaceScope scope;
-    private List<Page> pages = List.of();
+    private List<Page> pages = java.util.Collections.emptyList();
 
     private record WorkspaceScope(String workspace, String address, String key) {}
     private record Page(String id, String title) {}
@@ -178,7 +178,7 @@ public final class ToolsActivity extends Activity {
             generation++;
             busy = false;
             wasReady = false;
-            pages = List.of();
+            pages = java.util.Collections.emptyList();
             showStatus("", null);
             boolean changedWorkspace = !next.workspace().equals(scope.workspace());
             if(changedWorkspace) saveQuery();

@@ -7,7 +7,7 @@ java_bin="${JAVA_HOME:+$JAVA_HOME/bin/}"
 main_dir="${MAGPIE_BUILD_DIR:-android/build}"
 work_dir="$main_dir/instrumentation"
 mkdir -p "$work_dir/classes" "$work_dir/dex"
-"${java_bin}javac" -encoding UTF-8 -source 17 -target 17 -cp "$sdk/platforms/android-35/android.jar:$main_dir/classes" -d "$work_dir/classes" android/tests/NativeHeatmapAcceptance.java android/tests/NativeEmbeddedAcceptance.java android/tests/NativeNavigationAcceptance.java android/tests/NativeResponsiveAcceptance.java android/tests/NativeRefineAcceptance.java android/tests/NativeDailyAcceptance.java android/tests/NativeAcceptance.java android/tests/NativeSetupAcceptance.java android/tests/PluginRuntimeProbe.java android/tests/NavigationRaceProbe.java
+"${java_bin}javac" -encoding UTF-8 -source 17 -target 17 -cp "$sdk/platforms/android-35/android.jar:$main_dir/classes" -d "$work_dir/classes" android/tests/NativePreviewAcceptance.java android/tests/NativeHeatmapAcceptance.java android/tests/NativeEmbeddedAcceptance.java android/tests/NativeNavigationAcceptance.java android/tests/NativeResponsiveAcceptance.java android/tests/NativeRefineAcceptance.java android/tests/NativeDailyAcceptance.java android/tests/NativeAcceptance.java android/tests/NativeSetupAcceptance.java android/tests/PluginRuntimeProbe.java android/tests/NavigationRaceProbe.java
 mapfile -t files < <(find "$work_dir/classes" -name '*.class' -type f)
 "$bt/d8" --lib "$sdk/platforms/android-35/android.jar" --classpath "$main_dir/classes" --min-api 26 --output "$work_dir/dex" "${files[@]}"
 "$bt/aapt2" link --manifest android/tests/instrumentation-manifest.xml -I "$sdk/platforms/android-35/android.jar" -o "$work_dir/test.apk"

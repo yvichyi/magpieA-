@@ -1,0 +1,199 @@
+#!/usr/bin/env python3
+"""Verify the signed preview in a disposable rooted Android SDK emulator."""
+import argparse
+import gzip
+import hashlib
+import http.cookiejar
+import io
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import tarfile
+import threading
+import time
+import urllib.parse
+import urllib.request
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--mode', choices=['flow', 'small', 'glass'], default='flow')
+parser.add_argument('--evidence', type=Path, required=True)
+args = parser.parse_args()
+ADB = os.environ.get('ADB', '/workspace/toolchains/android-sdk/platform-tools/adb')
+SERIAL = os.environ.get('ANDROID_SERIAL', 'emulator-5554')
+PACKAGE = 'ai.magpie.android'
+PLUGIN = 'magpie-android-preview-fixture'
+args.evidence.mkdir(parents=True, exist_ok=True)
+
+
+def adb(*parts, timeout=55):
+    result = subprocess.run([ADB, '-s', SERIAL, *parts], capture_output=True, timeout=timeout)
+    if result.returncode:
+        raise subprocess.CalledProcessError(result.returncode, result.args, result.stdout, result.stderr)
+    return result.stdout
+
+
+if not SERIAL.startswith('emulator-') or adb('shell', 'getprop', 'ro.kernel.qemu').strip() != b'1':
+    raise RuntimeError('Preview fixtures require a disposable SDK emulator')
+
+
+class Fixture(BaseHTTPRequestHandler):
+    version = '1.0.1'
+    installs = []
+    invocations = []
+
+    def log_message(self, *ignored):
+        pass
+
+    def reply(self, value, media='application/json'):
+        if not isinstance(value, bytes):
+            value = json.dumps(value).encode()
+        self.send_response(200)
+        self.send_header('Content-Type', media)
+        self.send_header('Content-Length', str(len(value)))
+        self.end_headers()
+        self.wfile.write(value)
+
+    def archive(self, version):
+        output = io.BytesIO()
+        js = b'export const PreviewFixture = async () => ({});'
+        files = {'package.json': json.dumps({'name': PLUGIN, 'version': version, 'type': 'module', 'main': 'index.js'}).encode(),
+                 'index.js': js}
+        with tarfile.open(fileobj=output, mode='w') as archive:
+            for name, data in files.items():
+                entry = tarfile.TarInfo('package/' + name)
+                entry.size = len(data)
+                archive.addfile(entry, io.BytesIO(data))
+        return gzip.compress(output.getvalue(), mtime=0)
+
+    def do_GET(self):
+        if self.path == '/_advance':
+            Fixture.version = '1.0.2'
+            return self.reply({'version': Fixture.version})
+        if self.path.startswith('/v1/models'):
+            return self.reply({'object': 'list', 'data': [{'id': 'preview-echo'}, {'id': 'preview-second'}]})
+        if '.tgz' in self.path:
+            version = self.path.removesuffix('.tgz').split('-')[-1]
+            Fixture.installs.append(version)
+            return self.reply(self.archive(version), 'application/octet-stream')
+        ver = Fixture.version
+        archive = self.archive(ver)
+        version = {'name': PLUGIN, 'version': ver, 'type': 'module', 'main': 'index.js',
+                   'dist': {'tarball': f'{origin}/{PLUGIN}/-/{PLUGIN}-{ver}.tgz',
+                            'shasum': hashlib.sha1(archive).hexdigest()}}
+        return self.reply({'name': PLUGIN, 'description': 'Android SDK preview fixture',
+                           'dist-tags': {'latest': ver}, 'versions': {ver: version}})
+
+    def do_POST(self):
+        data = json.loads(self.rfile.read(int(self.headers.get('Content-Length', '0'))) or b'{}')
+        Fixture.invocations.append(self.path)
+        model = data.get('model', 'preview-echo')
+        usage = {'prompt_tokens': 13, 'completion_tokens': 3, 'total_tokens': 16}
+        if data.get('stream'):
+            chunks = []
+            for delta, finish in [({'role': 'assistant', 'content': 'OK'}, None), ({}, 'stop')]:
+                chunks.append({'id': 'preview', 'object': 'chat.completion.chunk', 'model': model,
+                               'choices': [{'index': 0, 'delta': delta, 'finish_reason': finish}]})
+            chunks.append({'id': 'preview', 'object': 'chat.completion.chunk', 'model': model, 'choices': [], 'usage': usage})
+            return self.reply((''.join('data: ' + json.dumps(chunk) + '\n\n' for chunk in chunks) +
+                               'data: [DONE]\n\n').encode(), 'text/event-stream')
+        return self.reply({'id': 'preview', 'object': 'chat.completion', 'model': model, 'usage': usage,
+                           'choices': [{'index': 0, 'message': {'role': 'assistant', 'content': 'OK'}, 'finish_reason': 'stop'}]})
+
+
+def management():
+    pid = adb('shell', 'pidof', 'libmagpie.so').decode().split()[0]
+    environ = dict(value.split(b'=', 1) for value in adb('exec-out', 'cat', f'/proc/{pid}/environ').split(b'\0') if b'=' in value)
+    if not environ.get(b'MAGPIE_BUN', b'').endswith(b'/libmagpie-bun.so'):
+        raise RuntimeError('Native package runtime missing')
+    key = environ[b'MAGPIE_WEB_KEY'].decode()
+    links = adb('shell', f'for f in /proc/{int(pid)}/fd/*; do readlink "$f" || :; done').decode()
+    inodes = set(re.findall(r'socket:\[(\d+)\]', links))
+    ports = []
+    for name in ['tcp', 'tcp6']:
+        for line in adb('exec-out', 'cat', f'/proc/{pid}/net/{name}').decode().splitlines()[1:]:
+            fields = line.split()
+            if len(fields) > 9 and fields[3] == '0A' and fields[9] in inodes:
+                ports.append(int(fields[1].split(':')[1], 16))
+    port = next(port for port in ports if port != 3425)
+    forwarded = int(adb('forward', 'tcp:0', f'tcp:{port}').strip())
+    base = f'http://127.0.0.1:{forwarded}'
+    client = urllib.request.build_opener(urllib.request.ProxyHandler({}),
+                                          urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+    client.open(base + '/?k=' + urllib.parse.quote(key, safe=''), timeout=25).close()
+
+    def request(path, body=None):
+        data = None if body is None else json.dumps(body).encode()
+        headers = {'Content-Type': 'application/json', 'Origin': base}
+        with client.open(urllib.request.Request(base + path, data, headers), timeout=90) as reply:
+            return json.load(reply)
+
+    return request, forwarded
+
+
+server = ThreadingHTTPServer(('127.0.0.1', 0), Fixture)
+port = server.server_address[1]
+origin = f'http://127.0.0.1:{port}'
+threading.Thread(target=server.serve_forever, daemon=True).start()
+old_font = adb('shell', 'settings', 'get', 'system', 'font_scale').decode().strip()
+old_size = adb('shell', 'wm', 'size').decode()
+old_override = re.search(r'Override size: (\d+x\d+)', old_size)
+try:
+    adb('reverse', f'tcp:{port}', f'tcp:{port}')
+    if args.mode == 'flow':
+        adb('shell', 'am', 'start-foreground-service', '-n', PACKAGE + '/.GatewayService')
+        deadline = time.monotonic() + 160
+        while True:
+            try:
+                api, forward = management()
+                try:
+                    for installed in api('/api/plugins').get('plugins', []):
+                        spec = installed.get('spec', '')
+                        if spec == PLUGIN or spec.startswith(PLUGIN + '@'):
+                            api('/api/plugins/remove', {'spec': spec})
+                    api('/api/plugins/registry', {'url': origin})
+                finally:
+                    adb('forward', '--remove', f'tcp:{forward}')
+                break
+            except (OSError, StopIteration, IndexError, KeyError, subprocess.SubprocessError):
+                if time.monotonic() >= deadline:
+                    raise RuntimeError('Could not configure the disposable plugin registry') from None
+                time.sleep(2)
+    if args.mode == 'small':
+        adb('shell', 'wm', 'size', '320x568')
+        adb('shell', 'settings', 'put', 'system', 'font_scale', '2.0')
+    adb('shell', 'input', 'keyevent', 'KEYCODE_WAKEUP')
+    adb('shell', 'wm', 'dismiss-keyguard')
+    command = [ADB, '-s', SERIAL, 'shell', 'am', 'instrument', '-w', '-r', '-e', 'mode', args.mode,
+               '-e', 'fixture', origin, '-e', 'plugin', PLUGIN, PACKAGE + '.tests/ai.magpie.android.NativePreviewAcceptance']
+    log_path = args.evidence / (args.mode + '.log')
+    with log_path.open('w') as log:
+        result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=960)
+    data = log_path.read_text()
+    print(data, flush=True)
+    if result.returncode or 'INSTRUMENTATION_CODE: -1' not in data:
+        raise RuntimeError('Installed preview acceptance failed')
+    if args.mode == 'flow':
+        assert Fixture.installs == ['1.0.1', '1.0.2'], Fixture.installs
+        assert len(Fixture.invocations) == 3, Fixture.invocations
+        print('PASS npm transport downloaded each version once and the gateway made exactly three test calls')
+finally:
+    try:
+        path = f'/data/user/0/{PACKAGE}/files/preview-evidence/{args.mode}'
+        raw = adb('exec-out', 'tar', '-c', '-C', path, '.', timeout=55)
+        with tarfile.open(fileobj=io.BytesIO(raw)) as archive:
+            for item in archive.getmembers():
+                if item.isfile() and item.name.endswith('.png') and item.size < 8 * 1024 * 1024:
+                    (args.evidence / Path(item.name).name).write_bytes(archive.extractfile(item).read())
+    except (subprocess.SubprocessError, OSError, tarfile.TarError):
+        pass
+    if args.mode == 'small':
+        adb('shell', 'wm', 'size', old_override.group(1) if old_override else 'reset')
+        if old_font == 'null':
+            adb('shell', 'settings', 'delete', 'system', 'font_scale')
+        else:
+            adb('shell', 'settings', 'put', 'system', 'font_scale', old_font)
+    adb('reverse', '--remove', f'tcp:{port}')
+    server.shutdown()

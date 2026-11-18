@@ -25,7 +25,7 @@ final class CoreApi {
         HttpFailure(int status,String body){super("请求失败（HTTP "+status+"）");this.status=status;this.body=body;}
     }
     String post(String path,String body)throws IOException{
-        if(!java.util.Arrays.asList("/api/provider/list","/api/provider/save","/api/plugins/add","/api/plugins/upgrade","/api/plugins/off","/api/plugins/builtin","/api/plugins/check").contains(path))throw new IllegalArgumentException("Invalid write API path");
+        if(!java.util.Arrays.asList("/api/provider/list","/api/provider/save","/api/groups/save","/api/plugins/add","/api/plugins/upgrade","/api/plugins/off","/api/plugins/builtin","/api/plugins/check").contains(path))throw new IllegalArgumentException("Invalid write API path");
         byte[] bytes=body.getBytes(StandardCharsets.UTF_8);if(bytes.length>1024*1024)throw new IllegalArgumentException("配置内容过大");
         authenticate();HttpURLConnection c=connection(path);
         if(path.equals("/api/plugins/add")||path.equals("/api/plugins/upgrade")) c.setReadTimeout(320000);
