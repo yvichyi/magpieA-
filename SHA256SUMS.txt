@@ -1,0 +1,2 @@
+26f5309c77b4c2e3d46125365d2740e180c088629cbda9e37d1ffa7475e80b75  Magpie-Android-2.0.0-preview3-arm64.apk
+a8b891edb8664623f331fcd53fd4faa0e96964cb9f32d6c9eeb160603f58ece8  Magpie-Android-2.0.0-preview3-x86_64.apk
