@@ -31,7 +31,7 @@ final class CatalogScreen implements AppScreen {
     private static final int PROVIDERS = 2;
     private static final int PAGE_SIZE = 30;
     private static final String[] TABS = {"模型", "分组", "服务商"};
-    private static final String[] FILTERS = {"全部", "仅可接入", "收藏"};
+    private static final String[] FILTERS = {"全部", "可接入", "收藏"};
 
     private static final class Tab {
         String query = "";
@@ -79,6 +79,7 @@ final class CatalogScreen implements AppScreen {
         for (int i = 0; i < TABS.length; i++) {
             int selected = i;
             tabButtons[i] = CatalogViews.action(ui, TABS[i], () -> selectTab(selected));
+            tabButtons[i].setPadding(ui.dp(2), ui.dp(6), ui.dp(2), ui.dp(6));
             tabs.addView(tabButtons[i], new LinearLayout.LayoutParams(0, -2, 1));
         }
         body.addView(tabs);
@@ -117,6 +118,7 @@ final class CatalogScreen implements AppScreen {
         for (int i = 0; i < FILTERS.length; i++) {
             int filter = i;
             filterButtons[i] = CatalogViews.action(ui, FILTERS[i], () -> selectFilter(filter));
+            filterButtons[i].setPadding(ui.dp(2), ui.dp(6), ui.dp(2), ui.dp(6));
             filters.addView(filterButtons[i], new LinearLayout.LayoutParams(0, -2, 1));
         }
         body.addView(filters);

@@ -117,7 +117,7 @@ final class InsightsScreen implements AppScreen {
         LinearLayout tools = ui.row();
         period = segment("", this::choosePeriod);
         period.setGravity(Gravity.CENTER_VERTICAL);
-        ui.grow(tools, period);
+        tools.addView(period, new LinearLayout.LayoutParams(0, -2, 1.35f));
         filters = segment("", this::chooseFilter);
         ui.grow(tools, filters);
         refresh = ui.iconButton("refresh", "刷新用量", this::refresh);

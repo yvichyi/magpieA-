@@ -15,6 +15,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
+from uuid import uuid4
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 parser = argparse.ArgumentParser()
@@ -24,7 +25,9 @@ args = parser.parse_args()
 ADB = os.environ.get('ADB', '/workspace/toolchains/android-sdk/platform-tools/adb')
 SERIAL = os.environ.get('ANDROID_SERIAL', 'emulator-5554')
 PACKAGE = 'ai.magpie.android'
-PLUGIN = 'magpie-android-preview-fixture'
+PLUGIN_PREFIX = 'magpie-android-preview-fixture'
+# Bun retains downloaded modules across test runs, including after uninstall.
+PLUGIN = f'{PLUGIN_PREFIX}-{uuid4().hex[:8]}'
 args.evidence.mkdir(parents=True, exist_ok=True)
 
 
@@ -153,7 +156,8 @@ try:
                 try:
                     for installed in api('/api/plugins').get('plugins', []):
                         spec = installed.get('spec', '')
-                        if spec == PLUGIN or spec.startswith(PLUGIN + '@'):
+                        name = spec.split('@', 1)[0]
+                        if name == PLUGIN_PREFIX or re.fullmatch(re.escape(PLUGIN_PREFIX) + r'-[0-9a-f]{8}', name):
                             api('/api/plugins/remove', {'spec': spec})
                     api('/api/plugins/registry', {'url': origin})
                 finally:

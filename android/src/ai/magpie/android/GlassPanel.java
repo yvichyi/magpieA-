@@ -73,9 +73,15 @@ final class GlassPanel extends FrameLayout {
         float radius = radius();
         boolean live = backdrop != null && canvas.isHardwareAccelerated()
                 && backdrop.drawLens(canvas, getLeft(), getTop(), getWidth(), getHeight(), radius);
-        if (live) fill.setColor(dark ? 0xbd191d20 : 0xaeeef3f8);
-        else if (solid || !canvas.isHardwareAccelerated()) fill.setColor(dark ? 0xff25282c : 0xfff4f6f8);
-        else fill.setColor(dark ? 0xf025282c : 0xecf4f6f8);
+        if (live) {
+            boolean largeText = getResources().getConfiguration().fontScale >= 1.5f;
+            fill.setColor(dark ? 0xbd191d20 : 0xaeeef3f8);
+            if (largeText) fill.setAlpha(225);
+        } else if (solid || !canvas.isHardwareAccelerated()) {
+            fill.setColor(dark ? 0xff25282c : 0xfff4f6f8);
+        } else {
+            fill.setColor(dark ? 0xf025282c : 0xecf4f6f8);
+        }
         canvas.drawRoundRect(0, 0, getWidth(), getHeight(), radius, radius, fill);
         float inset = stroke.getStrokeWidth() * .5f;
         float rim = Math.max(0, radius - inset);

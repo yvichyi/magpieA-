@@ -10,6 +10,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -250,7 +251,12 @@ public final class MainActivity extends Activity implements ScreenHost {
             ui.gap(header, 10);
         }
         TextView title = ui.text(root.detail() ? root.page().title : "Magpie", 20, ui.ink, true);
-        title.setMaxLines(2);
+        if (root.detail()) {
+            title.setMaxLines(2);
+        } else {
+            title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20);
+            title.setSingleLine(true);
+        }
         title.setEllipsize(TextUtils.TruncateAt.END);
         ui.grow(header, title);
         if (root.detail()) return;

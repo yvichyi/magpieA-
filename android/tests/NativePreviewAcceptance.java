@@ -63,12 +63,14 @@ public final class NativePreviewAcceptance extends Instrumentation {
             });
             home = (MainActivity) startActivitySync(new Intent(target, MainActivity.class)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
-            if (!GatewayService.ready) click("启动网关");
-            await(() -> GatewayService.ready, 180_000, "Bundled gateway did not start");
-            core = new CoreApi(GatewayService.managementOrigin, GatewayService.key(target));
-            require(core.get("/api/providers").contains("android-preview-preserved"), "1.12 provider absent after upgrade");
-            stage("UPGRADE_PROVIDER_RETAINED");
+            if (!mode.equals("glass")) {
+                if (!GatewayService.ready) click("启动网关");
+                await(() -> GatewayService.ready, 180_000, "Bundled gateway did not start");
+            }
             if (mode.equals("flow")) {
+                core = new CoreApi(GatewayService.managementOrigin, GatewayService.key(target));
+                require(core.get("/api/providers").contains("android-preview-preserved"), "1.12 provider absent after upgrade");
+                stage("UPGRADE_PROVIDER_RETAINED");
                 addProvider();
                 testConnection();
                 createGroup();
@@ -77,12 +79,16 @@ public final class NativePreviewAcceptance extends Instrumentation {
                 testSettings();
                 require(clipboardVerified, "Clipboard value was unavailable to the SDK instrumentation");
             } else if (mode.equals("small")) {
+                singleLine("Magpie");
+                awaitText("接入配置", 45_000);
                 capture("01-connect-large");
                 click("模型");
                 visible("搜索模型");
+                singleLine("服务商");
                 capture("02-models-large");
                 click("插件");
                 visible("从 npm 安装");
+                awaitText("Bun", 45_000);
                 capture("03-plugins-large");
                 testInsights(false);
                 click("打开设置");
@@ -335,6 +341,15 @@ public final class NativePreviewAcceptance extends Instrumentation {
             Rect rect = new Rect();
             return view != null && view.getGlobalVisibleRect(rect) && rect.height() >= view.getHeight() - 1;
         }, 25_000, "Clipped control: " + label);
+    }
+
+    private void singleLine(String label) throws Exception {
+        visible(label);
+        ui(() -> {
+            View view = find(decor(), label, false, false);
+            require(view instanceof TextView && ((TextView) view).getLineCount() == 1,
+                    "Wrapped label: " + label);
+        });
     }
 
     private void fill(String description, String value) throws Exception {
