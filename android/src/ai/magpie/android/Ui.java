@@ -90,19 +90,19 @@ final class Ui {
         material.addState(disabled, shape(soft, 16, false));
         material.addState(new int[0], glassControl(primary));
         b.setBackground(material);
-        b.setOnClickListener(v -> action.run()); return b;
+        b.setOnClickListener(v -> action.run()); UiMotion.press(b); return b;
     }
     void grow(LinearLayout row, View v) { row.addView(v, new LinearLayout.LayoutParams(0, -2, 1)); }
     void gap(LinearLayout row, int n) { row.addView(new View(a), new LinearLayout.LayoutParams(dp(n), 1)); }
     RippleDrawable ripple(int color,int radius){return new RippleDrawable(ColorStateList.valueOf(0x18000000),shape(color,radius,false),shape(android.graphics.Color.WHITE,radius,false));}
-    View iconButton(String name,String description,Runnable action){FrameLayout box=new FrameLayout(a);box.setBackground(ripple(android.graphics.Color.TRANSPARENT,12));box.setContentDescription(description);LineIcon icon=new LineIcon(a,name,ink);FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(dp(22),dp(22),Gravity.CENTER);box.addView(icon,p);box.setOnClickListener(v->action.run());box.setLayoutParams(new LinearLayout.LayoutParams(dp(48),dp(48)));return box;}
+    View iconButton(String name,String description,Runnable action){FrameLayout box=new FrameLayout(a);box.setBackground(ripple(android.graphics.Color.TRANSPARENT,12));box.setContentDescription(description);LineIcon icon=new LineIcon(a,name,ink);FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(dp(22),dp(22),Gravity.CENTER);box.addView(icon,p);box.setOnClickListener(v->action.run());UiMotion.press(box);box.setLayoutParams(new LinearLayout.LayoutParams(dp(48),dp(48)));return box;}
     View iconTile(String name,int size){FrameLayout tile=new FrameLayout(a);tile.addView(new LineIcon(a,name,accent),new FrameLayout.LayoutParams(dp(size-14),dp(size-14),Gravity.CENTER));tile.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);tile.setLayoutParams(new LinearLayout.LayoutParams(dp(size),dp(size)));return tile;}
     void rule(LinearLayout box,int left){View v=new View(a);v.setBackgroundColor(line);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,dp(1));p.leftMargin=dp(left);box.addView(v,p);}
     View copyButton(String description,Runnable action){
         FrameLayout box=new FrameLayout(a);box.setContentDescription(description);box.setBackground(ripple(Color.TRANSPARENT,8));
         box.addView(new LineIcon(a,"copy",ink),new FrameLayout.LayoutParams(dp(21),dp(21),Gravity.CENTER));
         LineIcon check=new LineIcon(a,"check",ink);check.setAlpha(0);box.addView(check,new FrameLayout.LayoutParams(dp(21),dp(21),Gravity.CENTER));
-        box.setOnClickListener(v->{action.run();UiMotion.copyFeedback(box);box.announceForAccessibility("已复制");});box.setLayoutParams(new LinearLayout.LayoutParams(dp(48),dp(48)));return box;
+        box.setOnClickListener(v->{action.run();UiMotion.copyFeedback(box);box.announceForAccessibility("已复制");});UiMotion.press(box);box.setLayoutParams(new LinearLayout.LayoutParams(dp(48),dp(48)));return box;
     }
     void viewport(LinearLayout root,View compactHeader,View... keyboardBars){
         root.getViewTreeObserver().addOnGlobalLayoutListener(()->{
@@ -114,15 +114,8 @@ final class Ui {
         });
     }
     View bottomNav(String selected,java.util.function.Consumer<String> action){
-        String current=NavigationModel.section(selected);
-        LinearLayout row=row();row.setPadding(dp(5),dp(5),dp(5),dp(5));
-        for(int i=0;i<NavigationModel.ROOTS.length;i++){
-            String id=NavigationModel.ROOTS[i];boolean on=id.equals(current);
-            LinearLayout cell=column();cell.setGravity(Gravity.CENTER);cell.setPadding(dp(4),dp(5),dp(4),dp(5));cell.setMinimumHeight(dp(54));cell.setContentDescription(NavigationModel.LABELS[i]);cell.setSelected(on);
-            cell.setBackground(ripple(on?(dark?0x30FFFFFF:0x1117222E):Color.TRANSPARENT,26));
-            cell.addView(new LineIcon(a,id.equals("connect")?"network":id.equals("home")?"providers":id,on?ink:muted),new LinearLayout.LayoutParams(dp(21),dp(21)));
-            space(cell,3);TextView label=text(NavigationModel.LABELS[i],12,on?ink:muted,on);label.setGravity(Gravity.CENTER);cell.addView(label);cell.setOnClickListener(v->action.accept(id));row.addView(cell,new LinearLayout.LayoutParams(0,-2,1));
-        }
-        row.setMinimumHeight(dp(64));return row;
+        GlassNavigation navigation = new GlassNavigation(this, action);
+        navigation.select(NavigationModel.section(selected), false);
+        return navigation;
     }
 }

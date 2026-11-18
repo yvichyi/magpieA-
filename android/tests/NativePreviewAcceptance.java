@@ -94,6 +94,7 @@ public final class NativePreviewAcceptance extends Instrumentation {
                 capture("08-settings-large");
                 back();
             } else if (mode.equals("glass")) {
+                testNavigationMotion();
                 testGlassBackdrop();
             } else if (mode.equals("stats")) {
                 capture("04-connection");
@@ -268,41 +269,93 @@ public final class NativePreviewAcceptance extends Instrumentation {
         stage("SETTINGS_RETURN_PRESERVES_REQUEST_LIST");
     }
 
+    private void testNavigationMotion() throws Exception {
+        ui(() -> {
+            target.getSharedPreferences("host", 0).edit().putBoolean("reduceMotion", false)
+                    .putBoolean("reduceTransparency", false).putBoolean("glassEnabled", true).commit();
+            home.openRoot("connect");
+        });
+        waitActivity(MainActivity.class);
+        await(() -> visibleDock().getWidth() > 0, 25_000, "Navigation dock did not lay out");
+        ui(() -> {
+            require(UiMotion.enabled(home), "System animation scale is zero");
+            GlassNavigation before = visibleDock();
+            before.getChildAt(1).performClick();
+            require(visibleDock() == before, "A tab switch replaced the moving dock");
+            require(currentPage().getTranslationY() > 0, "Root arrived with no visible travel");
+        });
+        await(() -> currentPage().getTranslationY() == 0 && currentPage().getAlpha() == 1,
+                10_000, "Tab transition did not settle");
+        capture("21-models-glass");
+        ui(() -> {
+            target.getSharedPreferences("host", 0).edit().putBoolean("reduceMotion", true).commit();
+            visibleDock().getChildAt(2).performClick();
+            require(currentPage().getTranslationY() == 0 && currentPage().getAlpha() == 1,
+                    "Reduced motion still moves the page");
+        });
+        capture("22-plugins-glass");
+        stage("RETAINED_DOCK_AND_VISIBLE_TAB_TRANSITION");
+    }
+
+    private GlassFrame glassFrame() {
+        return (GlassFrame) ((ViewGroup) home.findViewById(android.R.id.content)).getChildAt(0);
+    }
+
+    private GlassNavigation visibleDock() {
+        return (GlassNavigation) ((ViewGroup) glassFrame().getChildAt(1)).getChildAt(0);
+    }
+
+    private View currentPage() {
+        return ((ViewGroup) glassFrame().getChildAt(0)).getChildAt(0);
+    }
+
     private void testGlassBackdrop() throws Exception {
         AtomicReference<GlassFrame> frame = new AtomicReference<>();
         AtomicReference<View> source = new AtomicReference<>();
         ui(() -> {
             target.getSharedPreferences("host", 0).edit().putBoolean("reduceTransparency", false)
-                    .putBoolean("reduceMotion", false).putBoolean("glassEnabled", true).commit();
+                    .putBoolean("reduceMotion", true).putBoolean("glassEnabled", true).commit();
             GlassFrame glass = new GlassFrame(home);
             View scene = new View(home);
             scene.setBackgroundColor(0xff278748);
             glass.setScene(scene);
             glass.setDock(new View(home));
+            View toolbar = new View(home);
+            toolbar.setMinimumHeight(54);
+            glass.setToolbar(toolbar);
             home.setContentView(glass);
             frame.set(glass);
             source.set(scene);
         });
-        await(() -> frame.get().getChildAt(1).getHeight() >= 48, 20_000, "Glass probe did not lay out");
+        await(() -> frame.get().getChildAt(1).getHeight() >= 48 && frame.get().getChildAt(2).getHeight() >= 48,
+                20_000, "Both glass surfaces must lay out");
         Bitmap first = screenshot();
-        int[] xy = new int[2];
+        int[] dockCenter = new int[2], toolbarCenter = new int[2];
         ui(() -> {
-            View dock = frame.get().getChildAt(1);
-            dock.getLocationOnScreen(xy);
-            xy[0] += dock.getWidth() / 2;
-            xy[1] += dock.getHeight() / 2;
+            center(frame.get().getChildAt(1), dockCenter);
+            center(frame.get().getChildAt(2), toolbarCenter);
             source.get().setBackgroundColor(0xff3d46b8);
         });
         Bitmap second = screenshot();
-        int before = first.getPixel(xy[0], xy[1]), after = second.getPixel(xy[0], xy[1]);
+        boolean dockChanged = pixel(first, dockCenter) != pixel(second, dockCenter);
+        boolean toolbarChanged = pixel(first, toolbarCenter) != pixel(second, toolbarCenter);
         first.recycle();
         second.recycle();
         java.lang.reflect.Field mode = GlassFrame.class.getDeclaredField("mode");
         mode.setAccessible(true);
         require(mode.get(frame.get()) == GlassPolicy.Mode.REFRACT, "AGSL is unavailable under current SDK renderer settings");
-        require(before != after, "Dock does not sample the changing native backdrop");
-        stage("API35_REAL_AGSL_BACKDROP_CHANGES_PIXELS");
+        require(dockChanged && toolbarChanged, "Each lens must respond to the changing native backdrop");
+        target.getSharedPreferences("host", 0).edit().putBoolean("reduceMotion", false).commit();
+        stage("API35_BOTH_LENSES_REFRACT_WITH_REDUCED_MOTION");
     }
+
+    private static void center(View view, int[] point) {
+        view.getLocationOnScreen(point);
+        point[0] += view.getWidth() / 2;
+        point[1] += view.getHeight() / 2;
+    }
+
+    private static int pixel(Bitmap bitmap, int[] point) { return bitmap.getPixel(point[0], point[1]); }
 
     private void localGet(String path) throws Exception {
         HttpURLConnection connection = (HttpURLConnection) new URL(fixture + path).openConnection();

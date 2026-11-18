@@ -5,27 +5,35 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.app.Activity;
 import android.content.Intent;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.OvershootInterpolator;
 import android.view.animation.PathInterpolator;
 import java.util.WeakHashMap;
 
-/** Small, cancellable state transitions. System animation accessibility settings remain authoritative. */
+/** Cancellable transitions and touch feedback that respect reduced motion. */
 final class UiMotion {
     static final PathInterpolator EASE=new PathInterpolator(.2f,0,0,1);
+    private static final OvershootInterpolator RELEASE = new OvershootInterpolator(.75f);
     private static final WeakHashMap<View,Integer> epochs=new WeakHashMap<>();
     private static final WeakHashMap<View,ValueAnimator> sizes=new WeakHashMap<>();
     private static final WeakHashMap<Activity,Integer> routes=new WeakHashMap<>();
     private static View surface(Activity a){View v=a.findViewById(android.R.id.content);return v instanceof ViewGroup&&((ViewGroup)v).getChildCount()>0?((ViewGroup)v).getChildAt(0):v;}
     static void enter(Activity a){
         routes.put(a,routes.getOrDefault(a,0)+1);View root=surface(a);if(root==null)return;reset(root);
-        // Primary destinations keep a stable window; no whole-page fade or displacement.
     }
     static void stay(Activity a){pause(a);}
     static void pause(Activity a){routes.put(a,routes.getOrDefault(a,0)+1);View root=surface(a);if(root!=null)reset(root);}
-    static void go(Activity a,Intent intent,boolean finish){leave(a,()->{a.startActivity(intent);if(finish)a.finish();a.overridePendingTransition(0,0);});}
-    static void result(Activity a,Intent intent,int request){leave(a,()->{a.startActivityForResult(intent,request);a.overridePendingTransition(0,0);});}
-    static void close(Activity a){leave(a,()->{a.finish();a.overridePendingTransition(0,0);});}
+    static void go(Activity a,Intent intent,boolean finish){leave(a,()->{a.startActivity(intent);if(finish)a.finish();window(a,true);});}
+    static void result(Activity a,Intent intent,int request){leave(a,()->{a.startActivityForResult(intent,request);window(a,true);});}
+    static void close(Activity a){leave(a,()->{a.finish();window(a,false);});}
+    private static void window(Activity activity, boolean opening) {
+        if (enabled(activity)) activity.overridePendingTransition(
+                opening ? R.anim.page_enter : R.anim.page_return,
+                opening ? R.anim.page_underlay : R.anim.page_exit);
+        else activity.overridePendingTransition(0, 0);
+    }
     private static void leave(Activity a,Runnable action){
         int epoch=routes.getOrDefault(a,0)+1;routes.put(a,epoch);View root=surface(a);
         if(root==null){action.run();return;}
@@ -33,7 +41,35 @@ final class UiMotion {
     }
     static boolean enabled(){return ValueAnimator.areAnimatorsEnabled();}
     static boolean enabled(android.content.Context context){return !GlassOptions.stillMotion(context);}
-    static void reset(View v){epochs.put(v,epochs.getOrDefault(v,0)+1);ValueAnimator size=sizes.remove(v);if(size!=null)size.cancel();v.animate().cancel();v.animate().withEndAction(null);v.setAlpha(1);v.setTranslationY(0);}
+    static void reset(View v){epochs.put(v,epochs.getOrDefault(v,0)+1);ValueAnimator size=sizes.remove(v);if(size!=null)size.cancel();v.animate().cancel();v.animate().withEndAction(null);v.setAlpha(1);v.setTranslationX(0);v.setTranslationY(0);}
+    static void page(View view, float x, float y) {
+        reset(view);
+        if (!enabled(view.getContext())) return;
+        view.setTranslationX(x);
+        view.setTranslationY(y);
+        view.setAlpha(.74f);
+        view.animate().translationX(0).translationY(0).alpha(1)
+                .setDuration(x != 0 ? 265 : 225).setInterpolator(EASE).start();
+    }
+
+    static void press(View view) {
+        view.setOnTouchListener((target, event) -> {
+            int action = event.getActionMasked();
+            if (action != MotionEvent.ACTION_DOWN && action != MotionEvent.ACTION_UP
+                    && action != MotionEvent.ACTION_CANCEL) return false;
+            if (!enabled(target.getContext())) {
+                target.animate().cancel();
+                target.setScaleX(1);
+                target.setScaleY(1);
+                return false;
+            }
+            boolean down = action == MotionEvent.ACTION_DOWN;
+            target.animate().cancel();
+            target.animate().scaleX(down ? .94f : 1f).scaleY(down ? .94f : 1f)
+                    .setDuration(down ? 85 : 210).setInterpolator(down ? EASE : RELEASE).start();
+            return false;
+        });
+    }
     static void swap(View v,Runnable update){
         reset(v);update.run();
     }

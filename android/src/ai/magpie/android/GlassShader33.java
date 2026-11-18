@@ -18,12 +18,12 @@ final class GlassShader33 {
                 float2 q = abs(v) - (halfSize - radius);
                 float2 corner = max(q, float2(0.0));
                 float distanceToRim = length(corner) + min(max(q.x, q.y), 0.0) - radius;
-                float edge = 1.0 - smoothstep(0.0, 12.0 * density, -distanceToRim);
+                float edge = 1.0 - smoothstep(0.0, 21.0 * density, -distanceToRim);
                 float2 normal = sign(v) * corner / max(length(corner), 0.001);
-                float bend = 6.5 * density * edge * edge;
+                float bend = 15.0 * density * edge * edge;
                 half4 sampleColor = backdrop.eval(p - normal * bend);
                 float light = max(0.0, dot(normal, float2(-0.45, -0.89)));
-                half glint = half(0.34 * light * edge * edge);
+                half glint = half(0.58 * light * edge * edge);
                 return half4(mix(sampleColor.rgb, half3(sampleColor.a), glint), sampleColor.a);
             }
             """;
@@ -35,7 +35,7 @@ final class GlassShader33 {
         glass.setFloatUniform("radius", radius);
         glass.setFloatUniform("density", density);
         RenderEffect refract = RenderEffect.createRuntimeShaderEffect(glass, "backdrop");
-        RenderEffect soften = RenderEffect.createBlurEffect(1.2f * density, 1.2f * density, Shader.TileMode.CLAMP);
+        RenderEffect soften = RenderEffect.createBlurEffect(2.6f * density, 2.6f * density, Shader.TileMode.CLAMP);
         return RenderEffect.createChainEffect(refract, soften);
     }
 

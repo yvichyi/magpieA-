@@ -16,6 +16,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import java.util.ArrayDeque;
@@ -36,11 +37,14 @@ public final class MainActivity extends Activity implements ScreenHost {
     };
     private Ui ui;
     private GlassFrame glass;
+    private GlassNavigation navigation;
     private FrameLayout content;
     private LinearLayout header;
     private String rootId = "connect";
     private CatalogLoad.Scope workspaceScope;
     private boolean resumed, launchingSettings;
+
+    private enum PageMotion { NONE, TAB, PUSH, POP }
 
     private static final class Page {
         final AppScreen screen;
@@ -67,18 +71,17 @@ public final class MainActivity extends Activity implements ScreenHost {
         if (state != null) rootId = normalize(state.getString("root"));
         else rootId = initialRoot(getIntent(), "connect");
         glass = new GlassFrame(this);
-        LinearLayout scene = ui.column();
-        scene.setBackgroundColor(ui.bg);
         header = ui.row();
         header.setMinimumHeight(ui.dp(60));
-        header.setPadding(ui.dp(16), ui.dp(4), ui.dp(12), ui.dp(4));
-        scene.addView(header);
+        header.setPadding(ui.dp(14), ui.dp(4), ui.dp(6), ui.dp(4));
         content = new FrameLayout(this);
-        scene.addView(content, new LinearLayout.LayoutParams(-1, 0, 1));
-        glass.setScene(scene);
+        glass.setScene(content);
+        glass.setToolbar(header);
+        header.addOnLayoutChangeListener((view, l, t, r, b, oldL, oldT, oldR, oldB) -> updatePageInset());
+        navigation = new GlassNavigation(ui, this::openRoot);
         setContentView(glass);
         workspaceScope = scope();
-        showRoot(rootId);
+        showRoot(rootId, PageMotion.NONE);
 
         SharedPreferences prefs = getSharedPreferences("host", MODE_PRIVATE);
         if (Build.VERSION.SDK_INT >= 33 && !prefs.getBoolean("askedNotifications", false)
@@ -99,6 +102,7 @@ public final class MainActivity extends Activity implements ScreenHost {
         resumed = true;
         launchingSettings = false;
         glass.refreshOptions();
+        navigation.select(rootId, false);
         if (!resetIfWorkspaceChanged()) destination().page().screen.onResume();
         main.removeCallbacks(checkWorkspace);
         main.postDelayed(checkWorkspace, 1000);
@@ -143,7 +147,7 @@ public final class MainActivity extends Activity implements ScreenHost {
         if (root.page().screen.onBack()) return;
         if (root.detail()) {
             root.pages.pop().screen.dispose();
-            attach(false);
+            attach(PageMotion.POP);
         } else if (!rootId.equals("connect")) {
             openRoot("connect");
         } else {
@@ -171,7 +175,7 @@ public final class MainActivity extends Activity implements ScreenHost {
         if (current.matches(workspaceScope)) return false;
         disposePages();
         workspaceScope = current;
-        showRoot(rootId);
+        showRoot(rootId, PageMotion.NONE);
         return true;
     }
 
@@ -210,35 +214,52 @@ public final class MainActivity extends Activity implements ScreenHost {
         launchingSettings = false;
         UiMotion.stay(this);
         pausePage();
-        showRoot(target);
+        showRoot(target, PageMotion.TAB);
     }
 
-    private void showRoot(String id) {
+    private void showRoot(String id, PageMotion motion) {
         rootId = id;
         roots.computeIfAbsent(id, key -> new Destination(create(key)));
-        attach(false);
+        attach(motion);
     }
 
     @Override public void openDetail(String title, AppScreen screen) {
         UiMotion.stay(this);
         pausePage();
         destination().pages.push(new Page(screen, title));
-        attach(true);
+        attach(PageMotion.PUSH);
     }
 
-    private void attach(boolean enteringDetail) {
+    private void attach(PageMotion motion) {
         Destination root = destination();
         View page = root.page().screen.view();
+        View previous = content.getChildAt(0);
+        if (previous != null) UiMotion.reset(previous);
         if (page.getParent() instanceof ViewGroup) ((ViewGroup) page.getParent()).removeView(page);
         content.removeAllViews();
         content.addView(page, new FrameLayout.LayoutParams(-1, -1));
         renderHeader(root);
-        glass.setDock(root.detail() ? null : ui.bottomNav(rootId, this::openRoot));
-        if (enteringDetail && UiMotion.enabled(this)) {
-            page.setAlpha(.93f);
-            page.animate().alpha(1f).setDuration(120).setInterpolator(UiMotion.EASE).start();
-        }
+        glass.setDock(root.detail() ? null : navigation);
+        navigation.select(rootId, motion == PageMotion.TAB && !root.detail());
+        updatePageInset();
+        if (motion != PageMotion.NONE) UiMotion.page(page,
+                motion == PageMotion.TAB ? 0 : ui.dp(30) * (motion == PageMotion.POP ? -1 : 1),
+                motion == PageMotion.TAB ? ui.dp(14) : 0);
         if (resumed) root.page().screen.onResume();
+    }
+
+    private void updatePageInset() {
+        View page = content.getChildAt(0);
+        if (page == null) return;
+        int inset = Math.max(header.getMinimumHeight(), header.getHeight()) + glass.topGap() + ui.dp(3);
+        if (page instanceof ScrollView) {
+            content.setPadding(0, 0, 0, 0);
+            ((ScrollView) page).setClipToPadding(false);
+            if (page.getPaddingTop() != inset) page.setPadding(page.getPaddingLeft(), inset,
+                    page.getPaddingRight(), page.getPaddingBottom());
+        } else if (content.getPaddingTop() != inset) {
+            content.setPadding(0, inset, 0, 0);
+        }
     }
 
     private void renderHeader(Destination root) {
@@ -267,6 +288,7 @@ public final class MainActivity extends Activity implements ScreenHost {
         workspace.setBackground(ui.glassControl(false));
         workspace.setContentDescription("选择工作空间");
         workspace.setOnClickListener(view -> new HostActions(this, ui, this::refresh).workspace());
+        UiMotion.press(workspace);
         header.addView(workspace);
         ui.gap(header, 4);
         header.addView(ui.iconButton("settings", "打开设置", this::settings));
@@ -287,7 +309,7 @@ public final class MainActivity extends Activity implements ScreenHost {
         Destination root = roots.computeIfAbsent(rootId, key -> new Destination(create(key)));
         while (root.detail()) root.pages.pop().screen.dispose();
         ((ConnectScreen) root.base()).setTarget(reference);
-        attach(false);
+        attach(PageMotion.TAB);
     }
 
     @Override public void refresh() {

@@ -3,23 +3,24 @@ package ai.magpie.android;
 import android.app.Activity;
 import android.content.res.Configuration;
 import android.graphics.Canvas;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowInsets;
 import android.widget.FrameLayout;
 
-/** A full-sized native scene and its floating dock. Only the scene feeds the lens. */
+/** Records the native content beneath the two independent glass surfaces. */
 final class GlassFrame extends FrameLayout {
     interface Backdrop {
         Canvas beginScene(int width, int height);
         void endScene();
         void drawScene(Canvas canvas);
-        boolean drawLens(Canvas canvas, int left, int top, int width, int height, float radius);
+        boolean drawLens(Canvas canvas, boolean topSurface, int left, int top, int width, int height, float radius);
         void release();
     }
 
-    private final GlassPanel panel;
+    private final GlassPanel panel, toolbar;
     private final int gutter;
     private View scene;
     private GlassPolicy.Mode mode = GlassPolicy.Mode.SOLID;
@@ -30,14 +31,27 @@ final class GlassFrame extends FrameLayout {
     GlassFrame(Activity activity) {
         super(activity);
         gutter = Math.round(16 * getResources().getDisplayMetrics().density);
-        panel = new GlassPanel(activity);
+        panel = new GlassPanel(activity, false);
         panel.setMinimumHeight(Math.round(64 * getResources().getDisplayMetrics().density));
         LayoutParams dockLayout = new LayoutParams(LayoutParams.MATCH_PARENT,
                 LayoutParams.WRAP_CONTENT, Gravity.BOTTOM);
         dockLayout.setMargins(gutter, 0, gutter, gutter);
         addView(panel, dockLayout);
         panel.setVisibility(GONE);
+        toolbar = new GlassPanel(activity, true);
+        LayoutParams toolbarLayout = new LayoutParams(LayoutParams.MATCH_PARENT,
+                LayoutParams.WRAP_CONTENT, Gravity.TOP);
+        toolbarLayout.setMargins(gutter, topGap(), gutter, 0);
+        addView(toolbar, toolbarLayout);
+        toolbar.setVisibility(GONE);
         refreshOptions();
+    }
+
+    int topGap() { return Math.round(6 * getResources().getDisplayMetrics().density); }
+
+    void setToolbar(View view) {
+        toolbar.addView(view, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
+        toolbar.setVisibility(VISIBLE);
     }
 
     void setScene(View view) {
@@ -46,6 +60,7 @@ final class GlassFrame extends FrameLayout {
         scene = view;
         if (view != null) addView(view, 0, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
         panel.setMaterial(view != null ? backdrop : null, panel.dark(), opaque);
+        toolbar.setMaterial(view != null ? backdrop : null, toolbar.dark(), opaque);
         panel.invalidate();
     }
 
@@ -68,12 +83,13 @@ final class GlassFrame extends FrameLayout {
         int base = dark ? 0xff17191c : 0xfff9fafb;
         if (sceneColor != base) {
             sceneColor = base;
-            setBackgroundColor(base);
+            setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR, dark
+                    ? new int[]{0xff202e36, 0xff10161b, 0xff21313d}
+                    : new int[]{0xffe1ebf2, 0xfff6f8fa, 0xffdce9f0}));
         }
         opaque = GlassOptions.solidSurface(getContext());
         GlassPolicy.Mode selected = GlassPolicy.choose(Build.VERSION.SDK_INT, isHardwareAccelerated(),
-                GlassOptions.glassEnabled(getContext()), opaque,
-                GlassOptions.stillMotion(getContext()));
+                GlassOptions.glassEnabled(getContext()), opaque);
         if (selected != mode) {
             releaseBackdrop();
             mode = selected;
@@ -83,6 +99,7 @@ final class GlassFrame extends FrameLayout {
             invalidate();
         }
         panel.setMaterial(scene != null ? backdrop : null, dark, opaque);
+        toolbar.setMaterial(scene != null ? backdrop : null, dark, opaque);
     }
 
     @Override protected void onAttachedToWindow() {
@@ -105,6 +122,7 @@ final class GlassFrame extends FrameLayout {
         releaseBackdrop();
         mode = GlassPolicy.Mode.SOLID;
         panel.setMaterial(null, panel.dark(), opaque);
+        toolbar.setMaterial(null, toolbar.dark(), opaque);
         super.onDetachedFromWindow();
     }
 
@@ -115,7 +133,8 @@ final class GlassFrame extends FrameLayout {
 
     @Override protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
         if (child != scene || backdrop == null || !canvas.isHardwareAccelerated()
-                || panel.getVisibility() != VISIBLE || getWidth() == 0 || getHeight() == 0) {
+                || (panel.getVisibility() != VISIBLE && toolbar.getVisibility() != VISIBLE)
+                || getWidth() == 0 || getHeight() == 0) {
             return super.drawChild(canvas, child, drawingTime);
         }
         // drawChild records the platform child's live display list. Nested View invalidations
@@ -123,7 +142,7 @@ final class GlassFrame extends FrameLayout {
         Canvas source = backdrop.beginScene(getWidth(), getHeight());
         boolean animate;
         try {
-            source.drawColor(sceneColor);
+            getBackground().draw(source);
             animate = super.drawChild(source, child, drawingTime);
         } finally {
             backdrop.endScene();
@@ -150,6 +169,11 @@ final class GlassFrame extends FrameLayout {
                 || layout.bottomMargin != gutter + bottom) {
             layout.setMargins(gutter + left, 0, gutter + right, gutter + bottom);
             panel.setLayoutParams(layout);
+        }
+        LayoutParams header = (LayoutParams) toolbar.getLayoutParams();
+        if (header.leftMargin != gutter + left || header.rightMargin != gutter + right) {
+            header.setMargins(gutter + left, topGap(), gutter + right, 0);
+            toolbar.setLayoutParams(header);
         }
         updateDockVisibility();
     }

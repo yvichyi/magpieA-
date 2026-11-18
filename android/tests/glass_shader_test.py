@@ -24,7 +24,7 @@ builder.setUniform('density', 1.)
 def render(base):
     scene = skia.Surface(196, 100)
     scene.getCanvas().clear(base)
-    scene.getCanvas().drawRect(skia.Rect.MakeXYWH(0, 77, 196, 12),
+    scene.getCanvas().drawRect(skia.Rect.MakeXYWH(0, 72, 196, 17),
                                skia.Paint(Color=skia.ColorRED))
     builder.setChild('backdrop', scene.makeImageSnapshot().makeShader())
     result = skia.Surface(196, 100)
@@ -35,7 +35,7 @@ def render(base):
 for base, expected in [(skia.ColorBLUE, [0, 0, 255, 255]), (skia.ColorGREEN, [0, 255, 0, 255])]:
     pixels = render(base)
     assert list(pixels[50, 98]) == expected, 'Interior must sample the unshifted source'
-    assert list(pixels[80, 98]) == expected, 'The rim must bend the red stripe away, sampling the source above it'
+    assert list(pixels[80, 98]) == expected, 'The rim must pull the source from beyond the eight-pixel stripe'
     assert list(pixels[19, 98]) != expected, 'Upper rim must catch light'
 
 print('PASS host Skia compiles shipped AGSL, refracts a stripe, preserves the center and reacts to scene color')
