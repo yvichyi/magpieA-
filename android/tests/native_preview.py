@@ -2,6 +2,7 @@
 """Verify the signed preview in a disposable rooted Android SDK emulator."""
 import argparse
 import gzip
+from datetime import datetime, timedelta, timezone
 import hashlib
 import http.cookiejar
 import io
@@ -19,7 +20,8 @@ from uuid import uuid4
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--mode', choices=['flow', 'workflow', 'plugins', 'stats', 'small', 'glass', 'themes', 'typography', 'typography-small'], default='flow')
+parser.add_argument('--mode', choices=['flow', 'workflow', 'plugins', 'stats', 'small', 'glass', 'themes',
+                                      'typography', 'typography-small', 'render-benchmark', 'checkin'], default='flow')
 parser.add_argument('--evidence', type=Path, required=True)
 args = parser.parse_args()
 ADB = os.environ.get('ADB', '/workspace/toolchains/android-sdk/platform-tools/adb')
@@ -46,6 +48,9 @@ class Fixture(BaseHTTPRequestHandler):
     version = '1.0.1'
     installs = []
     invocations = []
+    checkin_on = True
+    checkin_result = []
+    checkin_posts = []
 
     def log_message(self, *ignored):
         pass
@@ -72,6 +77,21 @@ class Fixture(BaseHTTPRequestHandler):
         return gzip.compress(output.getvalue(), mtime=0)
 
     def do_GET(self):
+        if args.mode == 'checkin':
+            if self.path == '/?k=android-checkin-test-key':
+                self.send_response(302)
+                self.send_header('Set-Cookie', 'fixture_checkin=ok; Path=/; HttpOnly')
+                self.send_header('Location', '/')
+                self.send_header('Content-Length', '0')
+                self.end_headers()
+                return
+            if self.headers.get('Cookie') != 'fixture_checkin=ok':
+                return self.send_error(401)
+            if self.path == '/api/settings':
+                return self.reply(self.checkin_settings())
+            if self.path == '/api/usage/checkins/off':
+                return self.reply([])
+            return self.send_error(404)
         if self.path == '/_advance':
             Fixture.version = '1.0.2'
             return self.reply({'version': Fixture.version})
@@ -93,6 +113,20 @@ class Fixture(BaseHTTPRequestHandler):
 
     def do_POST(self):
         data = json.loads(self.rfile.read(int(self.headers.get('Content-Length', '0'))) or b'{}')
+        if args.mode == 'checkin':
+            if self.headers.get('Cookie') != 'fixture_checkin=ok' or self.headers.get('Origin') != origin:
+                return self.send_error(403)
+            if self.path == '/api/usage/checkin-account' and data == {'by': 'plugin:fixture', 'key': 'fixture|account1'}:
+                day = datetime.now(timezone(timedelta(hours=8))).date().isoformat()
+                result = {'day': day, 'outcome': 'claimed', 'asked': True, 'credit': 10}
+                Fixture.checkin_result = [dict(result, user='验收账号')]
+                Fixture.checkin_posts.append((self.path, data))
+                return self.reply(result)
+            if self.path == '/api/settings/checkin-account' and data == {'key': 'fixture|account1', 'on': False}:
+                Fixture.checkin_on = False
+                Fixture.checkin_posts.append((self.path, data))
+                return self.reply(self.checkin_settings())
+            return self.send_error(400)
         Fixture.invocations.append(self.path)
         model = data.get('model', 'preview-echo')
         usage = {'prompt_tokens': 13, 'completion_tokens': 3, 'total_tokens': 16}
@@ -106,6 +140,15 @@ class Fixture(BaseHTTPRequestHandler):
                                'data: [DONE]\n\n').encode(), 'text/event-stream')
         return self.reply({'id': 'preview', 'object': 'chat.completion', 'model': model, 'usage': usage,
                            'choices': [{'index': 0, 'message': {'role': 'assistant', 'content': 'OK'}, 'finish_reason': 'stop'}]})
+
+    @staticmethod
+    def checkin_settings():
+        return {
+            'checkinAccounts': [{'by': 'plugin:fixture', 'key': 'fixture|account1', 'user': '验收账号',
+                                 'on': Fixture.checkin_on}],
+            'checkinPlugins': [{'id': 'fixture', 'name': '验收服务商', 'on': True,
+                                'checkins': Fixture.checkin_result}],
+        }
 
 
 def management():
@@ -190,6 +233,11 @@ try:
     elif args.mode == 'workflow':
         assert len(Fixture.invocations) == 1, Fixture.invocations
         print('PASS loopback provider received the model request from the signed APK')
+    elif args.mode == 'checkin':
+        assert [path for path, _ in Fixture.checkin_posts] == [
+            '/api/usage/checkin-account', '/api/settings/checkin-account'
+        ], Fixture.checkin_posts
+        print('PASS authenticated manual check-in and automatic setting wrote their own exact routes once')
 finally:
     try:
         path = f'/data/user/0/{PACKAGE}/files/preview-evidence/{args.mode}'

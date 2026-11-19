@@ -25,6 +25,7 @@ import java.util.Map;
 
 /** The four native destinations retain their own detail and scroll context. */
 public final class MainActivity extends Activity implements ScreenHost {
+    static final String EXTRA_CHECK_IN = "openCheckIn";
     private final Map<String, Destination> roots = new LinkedHashMap<>();
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Runnable checkWorkspace = new Runnable() {
@@ -39,12 +40,25 @@ public final class MainActivity extends Activity implements ScreenHost {
     private GlassNavigation navigation;
     private FrameLayout content;
     private LinearLayout header;
+    private TextView workspaceControl;
+    private String chromeTitle;
+    private boolean detailChrome;
     private String rootId = "connect";
     private CatalogLoad.Scope workspaceScope;
     private Map<String, Object> retainedAppearanceState;
     private boolean resumed, launchingSettings;
 
-    private enum PageMotion { NONE, TAB, PUSH, POP }
+    private enum PageMotion {
+        NONE(0, false), TAB_FORWARD(1, true), TAB_BACK(-1, true), PUSH(1, false), POP(-1, false);
+
+        final int direction;
+        final boolean tab;
+
+        PageMotion(int direction, boolean tab) {
+            this.direction = direction;
+            this.tab = tab;
+        }
+    }
     private record RetainedAppearance(CatalogLoad.Scope scope, Map<String, Object> screens) {}
 
     private static final class Page {
@@ -107,7 +121,10 @@ public final class MainActivity extends Activity implements ScreenHost {
             prefs.edit().putBoolean("launched", true).apply();
             new HostActions(this, ui, this::refresh).start();
         }
-        if (state == null && getIntent().getBooleanExtra("showFunctions", false)) main.post(this::settings);
+        if (state != null ? state.getBoolean(EXTRA_CHECK_IN) : intent.getBooleanExtra(EXTRA_CHECK_IN, false)) {
+            main.post(this::openCheckIn);
+        }
+        else if (state == null && intent.getBooleanExtra("showFunctions", false)) main.post(this::settings);
     }
 
     @Override protected void onResume() {
@@ -139,6 +156,7 @@ public final class MainActivity extends Activity implements ScreenHost {
     @Override protected void onSaveInstanceState(Bundle state) {
         state.putString("root", rootId);
         state.putInt("catalogTab", catalogTab());
+        state.putBoolean(EXTRA_CHECK_IN, showingCheckIn());
         super.onSaveInstanceState(state);
     }
 
@@ -162,7 +180,8 @@ public final class MainActivity extends Activity implements ScreenHost {
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        if (intent.getBooleanExtra("showFunctions", false)) settings();
+        if (intent.getBooleanExtra(EXTRA_CHECK_IN, false)) openCheckIn();
+        else if (intent.getBooleanExtra("showFunctions", false)) settings();
         else openRoot(initialRoot(intent, rootId));
     }
 
@@ -221,11 +240,16 @@ public final class MainActivity extends Activity implements ScreenHost {
     private boolean resetIfWorkspaceChanged() {
         CatalogLoad.Scope current = scope();
         if (current.matches(workspaceScope)) return false;
+        boolean checkIn = showingCheckIn();
         int tab = catalogTab();
         disposePages();
         retainedAppearanceState = null;
         workspaceScope = current;
         restoreCatalogTab(tab);
+        if (checkIn) {
+            Destination usage = roots.computeIfAbsent("usage", id -> new Destination(create(id)));
+            usage.pages.push(new Page(new CheckInScreen(this), "签到"));
+        }
         showRoot(rootId, PageMotion.NONE);
         return true;
     }
@@ -269,7 +293,7 @@ public final class MainActivity extends Activity implements ScreenHost {
         launchingSettings = false;
         UiMotion.stay(this);
         pausePage();
-        showRoot(target, PageMotion.TAB);
+        showRoot(target, tabMotion(target));
         applyAppearance();
     }
 
@@ -277,6 +301,11 @@ public final class MainActivity extends Activity implements ScreenHost {
         rootId = id;
         roots.computeIfAbsent(id, key -> new Destination(create(key)));
         attach(motion);
+    }
+
+    private PageMotion tabMotion(String target) {
+        var order = Arrays.asList(NavigationModel.ROOTS);
+        return order.indexOf(target) < order.indexOf(rootId) ? PageMotion.TAB_BACK : PageMotion.TAB_FORWARD;
     }
 
     @Override public void openDetail(String title, AppScreen screen) {
@@ -290,19 +319,22 @@ public final class MainActivity extends Activity implements ScreenHost {
         Destination root = destination();
         View page = root.page().screen.view();
         View previous = content.getChildAt(0);
-        if (previous != null) UiMotion.reset(previous);
-        if (page.getParent() instanceof ViewGroup) ((ViewGroup) page.getParent()).removeView(page);
-        content.removeAllViews();
-        content.addView(page, new FrameLayout.LayoutParams(-1, -1));
+        if (previous != page) {
+            if (previous != null) {
+                UiMotion.reset(previous);
+                content.removeView(previous);
+            }
+            if (page.getParent() instanceof ViewGroup) ((ViewGroup) page.getParent()).removeView(page);
+            content.addView(page, new FrameLayout.LayoutParams(-1, -1));
+        }
         renderHeader(root);
         glass.setDock(root.detail() ? null : navigation);
-        navigation.select(rootId, motion == PageMotion.TAB && !root.detail());
         updatePageInset();
-        int direction = page.getLayoutDirection() == View.LAYOUT_DIRECTION_RTL ? -1 : 1;
-        if (motion != PageMotion.NONE) UiMotion.page(page,
-                motion == PageMotion.TAB ? 0 : ui.dp(30) * direction * (motion == PageMotion.POP ? -1 : 1),
-                motion == PageMotion.TAB ? ui.dp(14) : 0);
         if (resumed) root.page().screen.onResume();
+        navigation.select(rootId, motion.tab && !root.detail());
+        int layoutDirection = content.getLayoutDirection() == View.LAYOUT_DIRECTION_RTL ? -1 : 1;
+        if (previous != page) UiMotion.page(page, ui.dp(motion.tab ? 46 : 64) * motion.direction * layoutDirection,
+                motion.tab ? 285 : 300);
     }
 
     private void updatePageInset() {
@@ -318,16 +350,28 @@ public final class MainActivity extends Activity implements ScreenHost {
     }
 
     private void renderHeader(Destination root) {
+        boolean detail = root.detail();
+        String titleText = detail ? root.page().title : "Magpie";
+        String workspaceText = AppNavigation.remote(this) ? "远程 ⌄" : "本机 ⌄";
+        if (detail == detailChrome && titleText.equals(chromeTitle)) {
+            if (workspaceControl != null && !workspaceText.contentEquals(workspaceControl.getText())) {
+                workspaceControl.setText(workspaceText);
+            }
+            return;
+        }
+        chromeTitle = titleText;
+        detailChrome = detail;
+        workspaceControl = null;
         header.removeAllViews();
-        if (root.detail()) {
+        if (detail) {
             header.addView(ui.iconButton("back", "返回上一页", this::onBackPressed));
         } else {
             LineIcon bird = new LineIcon(this, "brand", ui.ink);
             header.addView(bird, new LinearLayout.LayoutParams(ui.dp(24), ui.dp(24)));
             ui.gap(header, 10);
         }
-        TextView title = ui.text(root.detail() ? root.page().title : "Magpie", Ui.Type.SECTION);
-        if (root.detail()) {
+        TextView title = ui.text(titleText, Ui.Type.SECTION);
+        if (detail) {
             title.setMaxLines(2);
         } else {
             title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20);
@@ -336,8 +380,9 @@ public final class MainActivity extends Activity implements ScreenHost {
         }
         title.setEllipsize(TextUtils.TruncateAt.END);
         ui.grow(header, title);
-        if (root.detail()) return;
-        TextView workspace = ui.text(AppNavigation.remote(this) ? "远程 ⌄" : "本机 ⌄", 13, ui.ink, true);
+        if (detail) return;
+        TextView workspace = ui.text(workspaceText, 13, ui.ink, true);
+        workspaceControl = workspace;
         workspace.setGravity(Gravity.CENTER);
         workspace.setPadding(ui.dp(12), 0, ui.dp(12), 0);
         workspace.setMinHeight(ui.dp(48));
@@ -360,13 +405,26 @@ public final class MainActivity extends Activity implements ScreenHost {
     @Override public void advanced(String view, String key, String value) { AppNavigation.detail(this, view, key, value); }
     @Override public void openWorkspace() { new HostActions(this, ui, this::refresh).workspace(); }
 
+    private boolean showingCheckIn() {
+        Destination root = destination();
+        return root != null && root.page().screen instanceof CheckInScreen;
+    }
+
+    private void openCheckIn() {
+        openRoot("usage");
+        if (!showingCheckIn()) {
+            openDetail("签到", new CheckInScreen(this));
+        }
+    }
+
     @Override public void connect(String reference) {
         pausePage();
+        PageMotion motion = tabMotion("connect");
         rootId = "connect";
         Destination root = roots.computeIfAbsent(rootId, key -> new Destination(create(key)));
         while (root.detail()) root.pages.pop().screen.dispose();
         ((ConnectScreen) root.base()).setTarget(reference);
-        attach(PageMotion.TAB);
+        attach(motion);
     }
 
     @Override public void refresh() {

@@ -8,6 +8,7 @@ import android.content.Intent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.view.animation.OvershootInterpolator;
 import android.view.animation.PathInterpolator;
 import java.util.WeakHashMap;
@@ -15,6 +16,7 @@ import java.util.WeakHashMap;
 /** Cancellable transitions and touch feedback that respect reduced motion. */
 final class UiMotion {
     static final PathInterpolator EASE=new PathInterpolator(.2f,0,0,1);
+    private static final PathInterpolator PAGE_EASE = new PathInterpolator(.23f, .72f, .22f, 1f);
     private static final OvershootInterpolator RELEASE = new OvershootInterpolator(.75f);
     private static final WeakHashMap<View,Integer> epochs=new WeakHashMap<>();
     private static final WeakHashMap<View,ValueAnimator> sizes=new WeakHashMap<>();
@@ -42,14 +44,24 @@ final class UiMotion {
     static boolean enabled(){return ValueAnimator.areAnimatorsEnabled();}
     static boolean enabled(android.content.Context context){return !GlassOptions.stillMotion(context);}
     static void reset(View v){epochs.put(v,epochs.getOrDefault(v,0)+1);ValueAnimator size=sizes.remove(v);if(size!=null)size.cancel();v.animate().cancel();v.animate().withEndAction(null);v.setAlpha(1);v.setTranslationX(0);v.setTranslationY(0);}
-    static void page(View view, float x, float y) {
+    static void page(View view, float distance, long duration) {
         reset(view);
-        if (!enabled(view.getContext())) return;
-        view.setTranslationX(x);
-        view.setTranslationY(y);
-        view.setAlpha(.74f);
-        view.animate().translationX(0).translationY(0).alpha(1)
-                .setDuration(x != 0 ? 265 : 225).setInterpolator(EASE).start();
+        if (distance == 0 || !enabled(view.getContext())) return;
+        int epoch = epochs.get(view);
+        view.setTranslationX(distance);
+        ViewTreeObserver observer = view.getViewTreeObserver();
+        observer.addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
+            @Override public boolean onPreDraw() {
+                if (observer.isAlive()) observer.removeOnPreDrawListener(this);
+                else view.getViewTreeObserver().removeOnPreDrawListener(this);
+                if (view.isAttachedToWindow() && epochs.getOrDefault(view, 0) == epoch) {
+                    if (enabled(view.getContext())) view.animate().translationX(0)
+                            .setDuration(duration).setInterpolator(PAGE_EASE).start();
+                    else view.setTranslationX(0);
+                }
+                return true;
+            }
+        });
     }
 
     static void press(View view) {

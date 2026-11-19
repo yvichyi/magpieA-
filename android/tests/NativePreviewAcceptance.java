@@ -8,19 +8,29 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.Rect;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.SystemClock;
+import android.view.FrameMetrics;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.EditText;
+import android.widget.Switch;
 import android.widget.TextView;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import org.json.JSONArray;
@@ -51,8 +61,15 @@ public final class NativePreviewAcceptance extends Instrumentation {
             target = getTargetContext();
             screenshots = new File(target.getFilesDir(), "preview-evidence/" + mode);
             require(screenshots.isDirectory() || screenshots.mkdirs(), "Cannot store evidence");
-            target.getSharedPreferences("host", 0).edit().putBoolean("launched", true)
-                    .putBoolean("askedNotifications", true).putBoolean("remote", false).commit();
+            boolean checkIn = mode.equals("checkin");
+            SharedPreferences.Editor prefs = target.getSharedPreferences("host", 0).edit().putBoolean("launched", true)
+                    .putBoolean("askedNotifications", true).putBoolean("remote", checkIn);
+            if (checkIn) prefs.putString("remoteAddress", fixture).putString("remoteKey", "android-checkin-test-key");
+            if (mode.equals("render-benchmark")) {
+                Ui.setAppearance(target, Appearance.GLASS);
+                prefs.putBoolean("reduceTransparency", false).putBoolean("reduceMotion", false).putBoolean("glassEnabled", true);
+            }
+            prefs.commit();
             ((Application) target.getApplicationContext()).registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
                 @Override public void onActivityResumed(Activity activity) { resumed.set(activity); }
                 @Override public void onActivityCreated(Activity activity, Bundle state) {}
@@ -64,11 +81,14 @@ public final class NativePreviewAcceptance extends Instrumentation {
             });
             home = (MainActivity) startActivitySync(new Intent(target, MainActivity.class)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
-            if (!mode.equals("workflow") && !mode.equals("glass") && !mode.equals("themes") && !mode.startsWith("typography")) {
+            if (!mode.equals("workflow") && !mode.equals("glass") && !mode.equals("themes")
+                    && !mode.equals("render-benchmark") && !mode.equals("checkin") && !mode.startsWith("typography")) {
                 if (!GatewayService.ready) click("启动网关");
                 await(() -> GatewayService.ready, 180_000, "Bundled gateway did not start");
             }
-            if (mode.equals("workflow")) {
+            if (checkIn) {
+                testCheckIn();
+            } else if (mode.equals("workflow")) {
                 testWorkspaceWorkflow();
             } else if (mode.equals("flow")) {
                 core = new CoreApi(GatewayService.managementOrigin, GatewayService.key(target));
@@ -100,6 +120,8 @@ public final class NativePreviewAcceptance extends Instrumentation {
             } else if (mode.equals("glass")) {
                 testNavigationMotion();
                 testGlassBackdrop();
+            } else if (mode.equals("render-benchmark")) {
+                testRenderBenchmark();
             } else if (mode.equals("themes")) {
                 testThemeSelection();
             } else if (mode.startsWith("typography")) {
@@ -197,6 +219,29 @@ public final class NativePreviewAcceptance extends Instrumentation {
                     "Provider tab is not selected when launching for the first time");
         });
         stage("FIRST_LAUNCH_OPENS_PROVIDERS");
+    }
+
+    private void testCheckIn() throws Exception {
+        click("用量");
+        click("签到");
+        awaitText("验收账号", 40_000);
+        capture("01-checkin-account");
+        click("签到 验收账号");
+        awaitText("签到成功 · +10 积分", 40_000);
+        require(!exists("签到 验收账号", false, true), "Already signed in today still offers a repeated write");
+        click("参与自动签到");
+        await(() -> find(decor(), "参与自动签到", false, true) instanceof Switch toggle && !toggle.isChecked(),
+                30_000, "Per-account switch did not reflect the saved setting");
+        capture("02-checkin-saved");
+        back();
+        click("打开设置");
+        waitActivity(ToolsActivity.class);
+        click("打开签到");
+        waitActivity(MainActivity.class);
+        awaitText("验收账号", 40_000);
+        await(() -> find(decor(), "参与自动签到", false, true) instanceof Switch toggle && !toggle.isChecked(),
+                30_000, "Reopened account did not reflect the saved setting");
+        stage("CHECKIN_FROM_USAGE_AND_SETTINGS");
     }
 
     private void assertWorkspaceChooser(String root) throws Exception {
@@ -391,8 +436,8 @@ public final class NativePreviewAcceptance extends Instrumentation {
 
     private void testThemeSelection() throws Exception {
         waitActivity(MainActivity.class);
-        ui(() -> require(glassFrame().getBackground() instanceof ArchitectureBackdrop,
-                "Default appearance must put the bundled photo beneath the chrome"));
+        ui(() -> require(glassFrame().getBackground() instanceof MaterialBackdrop,
+                "Glass appearance must use the continuous material background"));
         capture("01-glass-connection");
         click("模型");
         click("服务商");
@@ -411,8 +456,8 @@ public final class NativePreviewAcceptance extends Instrumentation {
         capture("04-swiss-usage");
         click("模型");
         changeTheme(Appearance.GLASS);
-        ui(() -> require(glassFrame().getBackground() instanceof ArchitectureBackdrop,
-                "Returning to glass must restore the photograph"));
+        ui(() -> require(glassFrame().getBackground() instanceof MaterialBackdrop,
+                "Returning to glass must restore the gradient"));
         stage("THEMES_SWITCH_BOTH_WAYS_AND_KEEP_PROVIDER_TAB");
     }
 
@@ -446,19 +491,65 @@ public final class NativePreviewAcceptance extends Instrumentation {
             GlassNavigation before = visibleDock();
             before.getChildAt(1).performClick();
             require(visibleDock() == before, "A tab switch replaced the moving dock");
-            require(currentPage().getTranslationY() > 0, "Root arrived with no visible travel");
+            require(Math.abs(currentPage().getTranslationX()) >= home.ui().dp(40),
+                    "Root arrived without a visible slide");
+            require(currentPage().getAlpha() == 1, "Full-page alpha needs an extra compositing layer");
         });
-        await(() -> currentPage().getTranslationY() == 0 && currentPage().getAlpha() == 1,
+        await(() -> currentPage().getTranslationX() == 0 && currentPage().getAlpha() == 1,
                 10_000, "Tab transition did not settle");
         capture("21-models-glass");
         ui(() -> {
             target.getSharedPreferences("host", 0).edit().putBoolean("reduceMotion", true).commit();
             visibleDock().getChildAt(2).performClick();
-            require(currentPage().getTranslationY() == 0 && currentPage().getAlpha() == 1,
+            require(currentPage().getTranslationX() == 0 && currentPage().getAlpha() == 1,
                     "Reduced motion still moves the page");
         });
         capture("22-plugins-glass");
         stage("RETAINED_DOCK_AND_VISIBLE_TAB_TRANSITION");
+    }
+
+    private void testRenderBenchmark() throws Exception {
+        waitActivity(MainActivity.class);
+        ui(() -> {
+            require(decor().isHardwareAccelerated(), "Frame metrics need a hardware canvas");
+            require(UiMotion.enabled(home), "Frame benchmark requires motion enabled");
+            home.openRoot("connect");
+        });
+        switchBenchmarkTabs(4);
+        List<Long> timings = Collections.synchronizedList(new ArrayList<>());
+        AtomicInteger droppedReports = new AtomicInteger();
+        Window window = home.getWindow();
+        HandlerThread collector = new HandlerThread("magpie-frame-metrics");
+        collector.start();
+        Window.OnFrameMetricsAvailableListener listener = (owner, frame, dropped) -> {
+            long duration = frame.getMetric(FrameMetrics.TOTAL_DURATION);
+            if (duration > 0) timings.add(duration);
+            droppedReports.addAndGet(dropped);
+        };
+        ui(() -> window.addOnFrameMetricsAvailableListener(listener, new Handler(collector.getLooper())));
+        try {
+            switchBenchmarkTabs(16);
+        } finally {
+            ui(() -> window.removeOnFrameMetricsAvailableListener(listener));
+            collector.quitSafely();
+            collector.join(5_000);
+        }
+        var frames = new ArrayList<>(timings);
+        Collections.sort(frames);
+        require(frames.size() >= 16, "Insufficient frame samples");
+        long median = frames.get(frames.size() / 2);
+        long p90 = frames.get((int) Math.ceil(frames.size() * .9) - 1);
+        long overBudget = frames.stream().filter(frame -> frame > 16_666_667).count();
+        stage("FRAME_TIMINGS count=" + frames.size() + " median_ns=" + median + " p90_ns=" + p90
+                + " over_16ms=" + overBudget + " undelivered_reports=" + droppedReports.get());
+    }
+
+    private void switchBenchmarkTabs(int count) throws Exception {
+        for (int i = 0; i < count; i++) {
+            int tab = (i + 1) % 2;
+            ui(() -> visibleDock().getChildAt(tab).performClick());
+            Thread.sleep(400);
+        }
     }
 
     private GlassFrame glassFrame() {
@@ -510,7 +601,7 @@ public final class NativePreviewAcceptance extends Instrumentation {
         require(mode.get(frame.get()) == GlassPolicy.Mode.REFRACT, "AGSL is unavailable under current SDK renderer settings");
         require(dockChanged && toolbarChanged, "Each lens must respond to the changing native backdrop");
         target.getSharedPreferences("host", 0).edit().putBoolean("reduceMotion", false).commit();
-        stage("API35_BOTH_LENSES_REFRACT_WITH_REDUCED_MOTION");
+        stage("BOTH_LENSES_REFRACT_WITH_REDUCED_MOTION");
     }
 
     private static void center(View view, int[] point) {

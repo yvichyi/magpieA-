@@ -189,6 +189,7 @@ public final class ToolsActivity extends Activity {
         String query = search.getText().toString().trim().toLowerCase(Locale.ROOT);
         int count = general(query);
         count += section("用量", query, new String[][] {
+            {"checkIn", "签到", "给订阅账号签到，或设置每日自动签到"},
             {"usagePreferences", "额度与用量设置", "额度显示、币种和提醒"}
         });
         count += section("网络与共享", query, new String[][] {
@@ -339,6 +340,12 @@ public final class ToolsActivity extends Activity {
             case "diagnostics": actions.diagnostics(); return;
             case "about": actions.about(); return;
             case "workspace": actions.workspace(); return;
+            case "checkIn":
+                Intent destination = new Intent(this, MainActivity.class)
+                        .putExtra("root", "usage").putExtra(MainActivity.EXTRA_CHECK_IN, true)
+                        .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                UiMotion.go(this, destination, true);
+                return;
             case "agents": case "sessions":
                 if(!AppNavigation.remote(this)) {
                     new AlertDialog.Builder(this, ui.dialogTheme)

@@ -14,6 +14,7 @@ import android.text.InputFilter;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.text.TextWatcher;
+import android.view.Choreographer;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
@@ -72,6 +73,11 @@ final class PluginsScreen implements AppScreen {
     private Scope scope;
     private Object visible;
     private Runnable redraw;
+    private boolean redrawScheduled, rootNeedsRedraw, connected, refreshAfterAdvanced;
+    private final Choreographer.FrameCallback drawFrame = time -> {
+        redrawScheduled = false;
+        if (redraw != null) redraw.run();
+    };
     private AlertDialog dialog;
     private Attempt attempt;
     private java.util.function.Consumer<Completion> restoredCompletion;
@@ -233,9 +239,10 @@ final class PluginsScreen implements AppScreen {
         if (disposed) return;
         visible = observer;
         this.redraw = redraw;
-        updateScope();
-        notifyChange();
-        refresh(true);
+        if (updateScope() || observer != this || rootNeedsRedraw) notifyChange();
+        boolean refresh = refreshAfterAdvanced;
+        refreshAfterAdvanced = false;
+        refresh(refresh);
         schedulePoll();
     }
 
@@ -245,17 +252,32 @@ final class PluginsScreen implements AppScreen {
         redraw = null;
         generation++;
         main.removeCallbacks(poll);
-        for (Resource<?> resource : resources) resource.invalidate();
+        Choreographer.getInstance().removeFrameCallback(drawFrame);
+        redrawScheduled = false;
+        for (Resource<?> resource : resources) {
+            if (!resource.pending) continue;
+            resource.invalidate();
+            rootNeedsRedraw = true;
+        }
         if (dialog != null) dialog.dismiss();
     }
 
     private boolean updateScope() {
         Scope next = new Scope(activity);
-        if (next.same(scope)) return false;
+        boolean ready = AppNavigation.ready(activity) && !next.origin.isEmpty();
+        if (next.same(scope)) {
+            if (ready == connected) return false;
+            connected = ready;
+            for (Resource<?> resource : resources) {
+                if (resource != publicListings) resource.invalidate();
+            }
+            return true;
+        }
         boolean sameWorkspace = scope != null && next.workspace.equals(scope.workspace);
         if (dialog != null) dialog.dismiss();
         generation++;
         scope = next;
+        connected = ready;
         clearAttempt();
         restoredScroll = 0;
         for (Resource<?> resource : resources) resource.clear();
@@ -298,7 +320,7 @@ final class PluginsScreen implements AppScreen {
         if (tab == DISCOVER) {
             read(listings, MARKET_POLL, force, api -> PluginSnapshot.discovery(api.get("/api/plugins/listings"), PluginSnapshot.Feed.LISTINGS));
             read(github, MARKET_POLL, force, api -> PluginSnapshot.discovery(api.get("/api/plugins/github"), PluginSnapshot.Feed.GITHUB));
-            if (force && !requestedQuery.isEmpty() && search.value == null) requestSearch();
+            if (!requestedQuery.isEmpty() && search.value == null && (force || search.readAt == 0)) requestSearch();
         }
     }
 
@@ -312,17 +334,22 @@ final class PluginsScreen implements AppScreen {
         resource.pending = true;
         resource.readAt = now;
         int request = ++resource.request;
-        notifyChange();
+        boolean showingProgress = resource == updates || (resource.value == null && resource.error.isEmpty());
+        if (showingProgress) notifyChange();
         start.accept((value, error) -> {
             if (request != resource.request) return;
             resource.pending = false;
+            boolean changed = !error.equals(resource.error);
             resource.error = error;
             if (value != null) {
-                resource.value = value;
-                if (resource == installed) updates.value = null;
-                if (resource == installed || resource == builtins) reconcile(resource == builtins, now);
+                if (!value.equals(resource.value)) {
+                    resource.value = value;
+                    changed = true;
+                    if (resource == installed) updates.value = null;
+                }
+                if ((resource == installed || resource == builtins) && reconcile(resource == builtins, now)) changed = true;
             }
-            notifyChange();
+            if (changed || showingProgress) notifyChange();
             if (resource == installed && tab == DISCOVER && needsWorkspace() && listings.value == null) {
                 readPublicListings(false);
             }
@@ -395,12 +422,19 @@ final class PluginsScreen implements AppScreen {
             T result = value;
             String failure = error;
             main.post(() -> {
-                if (generation == epoch && current(desired) && ready()) receive.accept(result, failure);
+                if (generation != epoch || !current(desired)) return;
+                if (updateScope()) notifyChange();
+                if (ready()) receive.accept(result, failure);
             });
         }, "magpie-plugin-read").start();
     }
 
-    private void notifyChange() { if (redraw != null) redraw.run(); }
+    private void notifyChange() {
+        rootNeedsRedraw = true;
+        if (redraw == null || redrawScheduled) return;
+        redrawScheduled = true;
+        Choreographer.getInstance().postFrameCallback(drawFrame);
+    }
 
     private void select(int next) {
         if (next == tab) return;
@@ -424,6 +458,7 @@ final class PluginsScreen implements AppScreen {
     }
 
     private void render() {
+        rootNeedsRedraw = false;
         showOperation(operationPanel);
         find.setVisibility(tab == DISCOVER ? View.VISIBLE : View.GONE);
         renderResults();
@@ -743,6 +778,7 @@ final class PluginsScreen implements AppScreen {
         Resource<?> affected = operation.operation.builtin() ? builtins : installed;
         affected.invalidate();
         updates.clear();
+        rootNeedsRedraw = true;
         if (visible == null) return;
         if (completion.outcome() == Outcome.SUCCESS) {
             if (completion.installed() != null) { installed.value = completion.installed(); installed.error = ""; }
@@ -752,14 +788,18 @@ final class PluginsScreen implements AppScreen {
         refresh(true);
     }
 
-    private void reconcile(boolean builtin, long readAt) {
-        if (attempt == null || attempt.outcome != Outcome.UNCERTAIN || builtin != attempt.operation.builtin()) return;
+    private boolean reconcile(boolean builtin, long readAt) {
+        if (attempt == null || attempt.outcome != Outcome.UNCERTAIN || builtin != attempt.operation.builtin()) return false;
         List<PluginSnapshot.Builtin> list = builtins.value == null ? Collections.emptyList() : builtins.value;
         if (attempt.operation.observed(installed.value, list)) {
             PluginSnapshot.Entry entry = attempt.operation.installedEntry(installed.value);
             attempt.outcome = Outcome.SUCCESS;
             attempt.detail = entry == null ? "" : entry.error();
-        } else if (readAt >= attempt.operation.unknownUntil(attempt.startedAt)) attempt.checkedAfterDeadline = true;
+            return true;
+        }
+        if (attempt.checkedAfterDeadline || readAt < attempt.operation.unknownUntil(attempt.startedAt)) return false;
+        attempt.checkedAfterDeadline = true;
+        return true;
     }
 
     void showOperation(LinearLayout target) {
@@ -834,6 +874,7 @@ final class PluginsScreen implements AppScreen {
 
     void advanced(String view, String key, String value) {
         if (!current(scope) || !ready()) return;
+        refreshAfterAdvanced = true;
         if (key == null) host.advanced(view);
         else host.advanced(view, key, value);
     }

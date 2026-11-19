@@ -109,7 +109,8 @@ final class InsightsScreen implements AppScreen {
         scroll = new InsetScrollView(ui.a);
         scroll.setSaveEnabled(false);
         LinearLayout content = InsightsViews.content(ui, scroll);
-        content.addView(ui.text("用量", Ui.Type.PAGE));
+        content.addView(new AdaptivePair(ui, ui.text("用量", Ui.Type.PAGE),
+                ui.button("签到", false, () -> host.openDetail("签到", new CheckInScreen(host))), 10));
         ui.space(content, 12);
         offline = InsightsViews.note(ui, "");
         offline.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);

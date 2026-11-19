@@ -39,9 +39,13 @@ final class CatalogRepository {
     }
 
     void resume(Runnable observer) {
+        resume(observer, true);
+    }
+
+    void resume(Runnable observer, boolean refresh) {
         this.observer = observer;
         load.setActive(true);
-        pulse(true);
+        pulse(refresh, true);
         handler.removeCallbacks(poll);
         handler.postDelayed(poll, 1000);
     }
@@ -76,6 +80,10 @@ final class CatalogRepository {
     }
 
     private void pulse(boolean refresh) {
+        pulse(refresh, false);
+    }
+
+    private void pulse(boolean refresh, boolean notify) {
         CatalogLoad.Scope observed = observedScope();
         boolean connected = AppNavigation.ready(activity) && observed.configured();
         boolean changed = load.updateScope(observed) || ready != connected;
@@ -86,7 +94,7 @@ final class CatalogRepository {
         ready = connected;
         if (refresh || changed) nextRefresh = 0;
         if (ready && SystemClock.elapsedRealtime() >= nextRefresh && fetch == null) request();
-        else if (changed || refresh) observer.run();
+        else if (changed || refresh || notify) observer.run();
     }
 
     private void request() {

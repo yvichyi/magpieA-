@@ -14,7 +14,7 @@ import android.widget.FrameLayout;
 /** Records the native content beneath the two independent glass surfaces. */
 final class GlassFrame extends FrameLayout {
     interface Backdrop {
-        Canvas beginScene(int width, int height);
+        Canvas beginScene(int width, int height, Drawable background);
         void endScene();
         void drawScene(Canvas canvas);
         boolean drawLens(Canvas canvas, boolean topSurface, int left, int top, int width, int height, float radius);
@@ -25,7 +25,7 @@ final class GlassFrame extends FrameLayout {
     private final int gutter;
     private final boolean dark;
     private final Appearance appearance;
-    private final Drawable plainBackground, photoBackground;
+    private final Drawable plainBackground, materialBackground;
     private View scene;
     private GlassPolicy.Mode mode = GlassPolicy.Mode.SOLID;
     private Backdrop backdrop;
@@ -38,7 +38,7 @@ final class GlassFrame extends FrameLayout {
         appearance = Ui.appearance(activity);
         int background = appearance.palette(dark).bg();
         plainBackground = new ColorDrawable(background);
-        photoBackground = appearance == Appearance.GLASS ? new ArchitectureBackdrop(activity, background, dark) : plainBackground;
+        materialBackground = appearance == Appearance.GLASS ? new MaterialBackdrop(background, dark) : plainBackground;
         gutter = appearance == Appearance.SWISS ? 0 : Math.round(16 * getResources().getDisplayMetrics().density);
         panel = new GlassPanel(activity, false, appearance);
         panel.setMinimumHeight(Math.round(64 * getResources().getDisplayMetrics().density));
@@ -79,6 +79,7 @@ final class GlassFrame extends FrameLayout {
             panel.removeAllViews();
             if (view != null) panel.addView(view, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
         }
+        if (view instanceof GlassNavigation navigation) navigation.setOpaqueMaterial(opaque);
         updateDockVisibility();
     }
 
@@ -89,7 +90,7 @@ final class GlassFrame extends FrameLayout {
 
     void refreshOptions() {
         opaque = appearance == Appearance.SWISS || GlassOptions.solidSurface(getContext());
-        Drawable background = opaque ? plainBackground : photoBackground;
+        Drawable background = opaque ? plainBackground : materialBackground;
         if (getBackground() != background) setBackground(background);
         GlassPolicy.Mode selected = GlassPolicy.choose(Build.VERSION.SDK_INT, isHardwareAccelerated(),
                 GlassOptions.glassEnabled(getContext()), opaque);
@@ -103,6 +104,7 @@ final class GlassFrame extends FrameLayout {
         }
         panel.setMaterial(scene != null ? backdrop : null, dark, opaque);
         toolbar.setMaterial(scene != null ? backdrop : null, dark, opaque);
+        if (panel.getChildAt(0) instanceof GlassNavigation navigation) navigation.setOpaqueMaterial(opaque);
     }
 
     @Override protected void onAttachedToWindow() {
@@ -142,10 +144,9 @@ final class GlassFrame extends FrameLayout {
         }
         // drawChild records the platform child's live display list. Nested View invalidations
         // still traverse the normal hierarchy. The dock is a sibling and is never recorded here.
-        Canvas source = backdrop.beginScene(getWidth(), getHeight());
+        Canvas source = backdrop.beginScene(getWidth(), getHeight(), getBackground());
         boolean animate;
         try {
-            getBackground().draw(source);
             animate = super.drawChild(source, child, drawingTime);
         } finally {
             backdrop.endScene();

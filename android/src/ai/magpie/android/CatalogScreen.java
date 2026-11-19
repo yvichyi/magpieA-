@@ -65,7 +65,7 @@ final class CatalogScreen implements AppScreen {
     private String shownWorkspace = "";
     private CatalogLoad.Scope setupScope;
     private int found;
-    private boolean settingQuery, needsRender = true, shownReady, shownFailed, restoringScroll;
+    private boolean settingQuery, needsRender = true, shownReady, shownFailed, restoringScroll, refreshAfterGroupEditor;
 
     private record AppearanceState(Map<String, WorkspaceView> workspaces) {}
 
@@ -161,8 +161,9 @@ final class CatalogScreen implements AppScreen {
     }
 
     @Override public void onResume() {
-        needsRender = true;
-        repository.resume(observer);
+        boolean refresh = refreshAfterGroupEditor;
+        refreshAfterGroupEditor = false;
+        repository.resume(observer, refresh);
     }
 
     @Override public void onPause() {
@@ -458,6 +459,7 @@ final class CatalogScreen implements AppScreen {
         dismissKeyboard();
         if (workspace.selected == GROUPS) {
             if (shown == null || shownFailed) { repository.refresh(); return; }
+            refreshAfterGroupEditor = true;
             host.openDetail("新建分组", new GroupCreateScreen(this, scope));
         } else {
             setupScope = repository.load.scope;

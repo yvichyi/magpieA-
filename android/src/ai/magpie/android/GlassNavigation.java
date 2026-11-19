@@ -24,6 +24,7 @@ final class GlassNavigation extends LinearLayout {
     private ValueAnimator move;
     private int selected = -1;
     private float position, stretch;
+    private boolean opaque;
 
     GlassNavigation(Ui ui, Consumer<String> action) {
         super(ui.a);
@@ -59,15 +60,15 @@ final class GlassNavigation extends LinearLayout {
         int next = 0;
         while (next < icons.length - 1 && !root.equals(NavigationModel.ROOTS[next])) next++;
         boolean canMove = animate && selected >= 0 && isShown() && getWidth() > 0 && UiMotion.enabled(getContext());
-        if (next == selected && canMove) return;
+        int previous = selected;
+        if (next == previous && canMove) return;
         if (move != null) move.cancel();
         selected = next;
-        for (int i = 0; i < icons.length; i++) {
-            boolean active = selected == i;
-            getChildAt(i).setSelected(active);
-            icons[i].setAlpha(active ? 1f : .64f);
-            labels[i].setTextColor(active ? ui.accent : ui.muted);
-            labels[i].setTypeface(ui.font(false, active ? 600 : 400));
+        if (previous < 0) {
+            for (int i = 0; i < icons.length; i++) mark(i, selected == i);
+        } else if (previous != selected) {
+            mark(previous, false);
+            mark(selected, true);
         }
         if (!canMove || position == selected) {
             position = selected;
@@ -77,16 +78,31 @@ final class GlassNavigation extends LinearLayout {
         }
         float start = position;
         move = ValueAnimator.ofFloat(0f, 1f);
-        move.setDuration(300);
+        move.setDuration(335);
+        float destination = selected;
+        float amplitude = Math.min(.19f, .11f + .04f * Math.abs(destination - start));
         move.addUpdateListener(animation -> {
             float elapsed = animation.getAnimatedFraction();
             float eased = UiMotion.EASE.getInterpolation(elapsed);
-            position = start + (selected - start) * eased;
-            stretch = .12f * (float) Math.sin(Math.PI * elapsed);
+            position = start + (destination - start) * eased;
+            stretch = amplitude * (float) Math.sin(Math.PI * elapsed);
             invalidate();
         });
         move.setInterpolator(new android.view.animation.LinearInterpolator());
         move.start();
+    }
+
+    private void mark(int index, boolean active) {
+        getChildAt(index).setSelected(active);
+        icons[index].setAlpha(active ? 1f : .64f);
+        labels[index].setTextColor(active ? ui.accent : ui.muted);
+        labels[index].setTypeface(ui.font(false, active ? 600 : 400));
+    }
+
+    void setOpaqueMaterial(boolean value) {
+        if (opaque == value) return;
+        opaque = value;
+        invalidate();
     }
 
     @Override protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {
@@ -114,7 +130,6 @@ final class GlassNavigation extends LinearLayout {
                     center + half - ui.dp(12), getHeight(), fill);
             return;
         }
-        boolean opaque = GlassOptions.reduceTransparency(getContext()) || !GlassOptions.glassEnabled(getContext());
         fill.setShader(opaque ? null : finish);
         fill.setColor(opaque ? ui.soft : Color.WHITE);
         canvas.drawRoundRect(center - half, top, center + half, bottom, radius, radius, fill);

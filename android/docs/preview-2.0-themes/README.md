@@ -14,7 +14,7 @@
 | --- | --- |
 | [<img src="embedded-glass.png" width="230" alt="液态玻璃管理页样例">](embedded-glass.png) | [<img src="embedded-swiss.png" width="230" alt="瑞士风格管理页样例">](embedded-swiss.png) |
 
-建筑素材由 Vitalii Onyshchuk 拍摄，按 Unsplash License 使用，经裁切和灰阶调色后随 APK 离线分发。[照片原页](https://unsplash.com/photos/curving-architectural-lines-with-dramatic-light-and-shadow-XNQ__uum8DM) · [许可](https://unsplash.com/license) · [包内素材](../../res/drawable-nodpi/architectural_light.webp)
+预览 3 的建筑素材由 Vitalii Onyshchuk 拍摄，按 Unsplash License 使用，经裁切和灰阶调色后随该版 APK 离线分发。[照片原页](https://unsplash.com/photos/curving-architectural-lines-with-dramatic-light-and-shadow-XNQ__uum8DM) · [许可](https://unsplash.com/license) · [预览 3 包内素材](https://github.com/yvichyi/magpieA-/blob/v2.0.0-preview3/android/res/drawable-nodpi/architectural_light.webp)
 
 瑞士主题的网格和字阶参考 Poster House 的展览资料与瑞士国家图书馆资料。[The Swiss Grid](https://www.posterhouse.org/exhibition/the-swiss-grid) · [The International Style](https://www.nb.admin.ch/en/the-international-style-1950-1970)
 
