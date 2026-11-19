@@ -48,11 +48,10 @@ final class InsightsScreen implements AppScreen {
     private final ScreenHost host;
     private final Ui ui;
     private final ScrollView scroll;
-    private final LinearLayout body;
-    private final TextView period, filters, status;
-    private final View refresh;
+    private final LinearLayout body, sections, tools;
+    private final TextView period, filters, status, offline;
+    private final View refresh, connect;
     private final TextView[] tabs = new TextView[TABS.length];
-    private final TextView heading;
     private final int[] positions = new int[TABS.length];
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ThreadPoolExecutor reads = new ThreadPoolExecutor(2, 2, 10, TimeUnit.SECONDS,
@@ -110,24 +109,33 @@ final class InsightsScreen implements AppScreen {
         scroll = new InsetScrollView(ui.a);
         scroll.setSaveEnabled(false);
         LinearLayout content = InsightsViews.content(ui, scroll);
-        heading = ui.text("用量概览", Ui.Type.PAGE);
-        content.addView(heading);
+        content.addView(ui.text("用量", Ui.Type.PAGE));
         ui.space(content, 12);
-        LinearLayout sections = ui.row();
+        offline = InsightsViews.note(ui, "");
+        offline.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        content.addView(offline);
+        connect = ui.button("连接工作区", true, host::openWorkspace);
+        LinearLayout.LayoutParams connectLayout = new LinearLayout.LayoutParams(-1, -2);
+        connectLayout.topMargin = ui.dp(12);
+        connectLayout.bottomMargin = ui.dp(12);
+        content.addView(connect, connectLayout);
+
+        sections = ui.row();
         for (int i = 0; i < tabs.length; i++) {
             int index = i;
             tabs[i] = segment(TABS[i], () -> selectTab(index, false));
             ui.grow(sections, tabs[i]);
         }
-        content.addView(sections);
-        ui.space(content, 12);
+        LinearLayout.LayoutParams sectionsLayout = new LinearLayout.LayoutParams(-1, -2);
+        sectionsLayout.bottomMargin = ui.dp(8);
+        content.addView(sections, sectionsLayout);
 
-        LinearLayout tools = ui.row();
+        tools = ui.row();
         period = segment("", this::choosePeriod);
-        period.setGravity(Gravity.CENTER_VERTICAL);
-        tools.addView(period, new LinearLayout.LayoutParams(0, -2, 1.35f));
+        period.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         filters = segment("", this::chooseFilter);
-        ui.grow(tools, filters);
+        filters.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        ui.grow(tools, new AdaptivePair(ui, period, filters, 8));
         refresh = ui.iconButton("refresh", "刷新用量", this::refresh);
         tools.addView(refresh);
         content.addView(tools);
@@ -315,46 +323,47 @@ final class InsightsScreen implements AppScreen {
 
     private void render(int position) {
         int stamp = ++renderGeneration;
-        heading.setText(switch (tab) {
-            case ANALYSIS -> "用量分析";
-            case CALENDAR -> "每日用量";
-            case REQUESTS -> "请求记录";
-            default -> "用量概览";
-        });
-        for (int i = 0; i < tabs.length; i++) selected(tabs[i], tab == i);
         boolean calendar = tab == CALENDAR;
+        LedgerSnapshot ledger = calendar ? null : ledgerCache.get(path());
+        UsageHeatmap heat = calendar ? heatCache.get(path()) : null;
+        boolean shown = ledger != null || heat != null;
+        showingData = shown;
+        boolean cached = !ledgerCache.isEmpty() || !heatCache.isEmpty();
+        boolean connected = scope.ready;
+
+        offline.setVisibility(connected ? View.GONE : View.VISIBLE);
+        offline.setText(cached ? "工作区未连接 · 可查看上次读取的用量"
+                : "连接本机或远程工作区后，即可查看用量。");
+        connect.setVisibility(connected ? View.GONE : View.VISIBLE);
+        sections.setVisibility(connected || cached ? View.VISIBLE : View.GONE);
+        tools.setVisibility(connected ? View.VISIBLE : View.GONE);
+        for (int i = 0; i < tabs.length; i++) selected(tabs[i], tab == i);
         period.setVisibility(calendar ? View.GONE : View.VISIBLE);
-        period.setText(tab == REQUESTS && query.day != null ? query.day.toString()
-                : PERIOD_LABELS[indexOf(PERIODS, query.period)] + "  ⌄");
-        period.setEnabled(active);
+        String range = tab == REQUESTS && query.day != null ? query.day.toString()
+                : PERIOD_LABELS[indexOf(PERIODS, query.period)];
+        period.setText(calendar ? "" : range + "  ⌄");
+        period.setContentDescription("统计范围 · " + range);
+        period.setEnabled(active && connected);
         int filterCount = (tab == REQUESTS ? query : query.day(null)).filterCount();
         filters.setText(filterCount == 0 ? "筛选  ⌄" : "筛选（" + filterCount + "）  ⌄");
-        filters.setEnabled(active && scope.ready);
-        refresh.setEnabled(active && scope.ready && !loading);
+        filters.setEnabled(active && connected);
+        refresh.setEnabled(active && connected && !loading);
         refresh.setAlpha(refresh.isEnabled() ? 1f : .45f);
         refresh.setContentDescription(failed ? "重试读取用量" : "刷新用量");
 
         body.removeAllViews();
         chart = null;
         trend = null;
-        LedgerSnapshot ledger = calendar ? null : ledgerCache.get(path());
-        UsageHeatmap heat = calendar ? heatCache.get(path()) : null;
-        boolean shown = ledger != null || heat != null;
-        showingData = shown;
-        String state = !scope.ready ? (shown ? "网关未就绪 · 显示上次读取" : "工作空间未就绪")
+        String state = !connected ? (cached && !shown ? "当前分类暂无已读取的用量" : "")
                 : failed ? (shown ? "刷新失败 · 显示上次读取" : "读取用量失败")
                 : loading ? (shown ? "正在刷新 · 显示上次读取" : "正在读取用量…") : "";
         status.setText(state);
         status.setVisibility(state.isEmpty() ? View.GONE : View.VISIBLE);
 
-        if (!shown && !loading) {
-            if (failed) {
-                body.addView(InsightsViews.note(ui, "请检查当前工作空间的连接后重试。"));
-                body.addView(ui.button("重试", false, this::refresh));
-            } else if (!scope.ready) {
-                body.addView(InsightsViews.note(ui, "启动本机网关或连接远程工作空间后，即可查看用量。"));
-                body.addView(InsightsViews.action(ui, "前往接入", () -> host.openRoot("connect")));
-            }
+        if (!shown && failed) {
+            body.addView(InsightsViews.note(ui, "请检查当前工作区的连接后重试。"));
+            InsightsViews.pair(ui, body, ui.button("重试", true, this::refresh),
+                    ui.button("检查工作区", false, host::openWorkspace));
         } else if (heat != null) {
             renderCalendar(heat);
         } else if (ledger != null) {

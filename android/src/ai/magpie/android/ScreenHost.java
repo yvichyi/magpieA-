@@ -4,6 +4,7 @@ import android.app.Activity;
 interface ScreenHost {
     Activity activity();
     Ui ui();
+    void openWorkspace();
     void openRoot(String id);
     void openDetail(String title, AppScreen screen);
     void advanced(String view);

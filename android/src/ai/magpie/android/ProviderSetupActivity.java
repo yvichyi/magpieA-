@@ -70,7 +70,8 @@ public final class ProviderSetupActivity extends Activity {
         manual=field(body,"手动模型 ID（可选）","例如 gpt-5，多个 ID 用逗号或换行分隔",state.draft.manual,false);manual.setSingleLine(false);manual.setMinLines(2);manual.setMaxLines(5);manual.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE|android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         TextWatcher source=watcher(()->{capture();invalidateModels();renderModels();});address.addTextChangedListener(source);key.addTextChangedListener(source);
         manual.addTextChangedListener(watcher(()->{capture();updateCount();}));
-        LinearLayout footer=ui.column();footer.setPadding(ui.dp(24),ui.dp(12),ui.dp(24),ui.dp(16));ui.rule(root,0);message=ui.text("",13,ui.muted,false);message.setMaxLines(4);message.setEllipsize(android.text.TextUtils.TruncateAt.END);message.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);body.addView(message,0);save=ui.button("保存并查看模型",true,()->{if(state.uncertain)finishToModels();else perform(true);});footer.addView(save);root.addView(footer);ui.viewport(root,header);setContentView(root);root.requestFocus();
+        LinearLayout footer=ui.column();footer.setPadding(ui.dp(24),ui.dp(12),ui.dp(24),ui.dp(16));ui.rule(root,0);message=ui.text("",13,ui.muted,false);message.setMaxLines(4);message.setEllipsize(android.text.TextUtils.TruncateAt.END);message.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);body.addView(message,0);
+        save=ui.button("保存",true,()->{if(state.uncertain)finishToModels();else perform(true);});footer.addView(save);root.addView(footer);ui.viewport(root,header);setContentView(root);root.requestFocus();
     }
     private static TextWatcher watcher(Runnable action){return new TextWatcher(){public void beforeTextChanged(CharSequence s,int a,int c,int f){}public void onTextChanged(CharSequence s,int a,int b,int c){action.run();}public void afterTextChanged(Editable e){}};}
     private void capture(){if(address==null)return;ProviderDraft d=state.draft;d.url=address.getText().toString();d.key=key.getText().toString();d.name=name.getText().toString();d.manual=manual.getText().toString();}
@@ -88,7 +89,7 @@ public final class ProviderSetupActivity extends Activity {
     }
     private boolean currentWorkspace(){android.content.SharedPreferences p=getSharedPreferences("host",MODE_PRIVATE);return state.remote==p.getBoolean("remote",false)&&state.origin!=null&&state.origin.equals(state.remote?p.getString("remoteAddress",""):GatewayService.managementOrigin)&&(state.remote||GatewayService.ready);}
     private void perform(boolean saving){
-        if(state.busy||state.uncertain)return;capture();if(!currentWorkspace()){state.error="工作空间已变化或网关未就绪，请返回模型页后重试。";render();return;}
+        if(state.busy||state.uncertain)return;capture();if(!currentWorkspace()){state.error="工作区已变化或网关未就绪。请返回、重新连接工作区后重试。";render();return;}
         String body;try{body=(saving?state.draft.save():state.draft.preview()).toString();}catch(IllegalArgumentException e){state.error=e.getMessage();render();return;}
         View focus=getCurrentFocus();if(focus!=null)focus.clearFocus();((android.view.inputmethod.InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(scroll.getWindowToken(),0);
         state.busy=true;state.saving=saving;state.error="";render();run(state,body,saving);
@@ -102,8 +103,11 @@ public final class ProviderSetupActivity extends Activity {
     private void render(){
         if(state.saved&&resumed){finishToModels();return;}if(save==null)return;
         for(View v:controls)v.setEnabled(!state.busy&&!state.uncertain);fetch.setText(state.busy&&!state.saving?"正在读取…":"读取模型");protocol.setText(PROTOCOLS[state.draft.protocol]+"  ⌄");
-        save.setEnabled(!state.busy);save.setText(state.busy?(state.saving?"正在保存…":"正在读取模型…"):state.uncertain?"返回模型列表确认":"保存并查看模型");
-        String status=state.uncertain?"保存结果待确认。请返回列表查看，不会自动重复提交。":state.error;
+        boolean connection = getIntent().getBooleanExtra("returnToConnection", false);
+        String next = connection ? "保存并接入" : "保存并查看模型";
+        if (state.uncertain) next = connection ? "返回接入确认" : "返回模型列表确认";
+        save.setEnabled(!state.busy);save.setText(state.busy?(state.saving?"正在保存…":"正在读取模型…"):next);
+        String status=state.uncertain?(connection?"保存结果待确认。请返回接入页查看。":"保存结果待确认。请返回模型列表查看。"):state.error;
         boolean newError=!status.isEmpty()&&!status.contentEquals(message.getText());
         message.setText(status);message.setMaxLines(Integer.MAX_VALUE);message.setEllipsize(null);message.setVisibility(status.isEmpty()?View.GONE:View.VISIBLE);renderModels();
         if(newError)message.post(()->{if(!isFinishing()&&message.isShown())message.requestRectangleOnScreen(new android.graphics.Rect(0,0,message.getWidth(),message.getHeight()),true);});

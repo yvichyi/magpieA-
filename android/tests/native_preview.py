@@ -19,7 +19,7 @@ from uuid import uuid4
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--mode', choices=['flow', 'stats', 'small', 'glass', 'themes', 'typography', 'typography-small'], default='flow')
+parser.add_argument('--mode', choices=['flow', 'workflow', 'plugins', 'stats', 'small', 'glass', 'themes', 'typography', 'typography-small'], default='flow')
 parser.add_argument('--evidence', type=Path, required=True)
 args = parser.parse_args()
 ADB = os.environ.get('ADB', '/workspace/toolchains/android-sdk/platform-tools/adb')
@@ -147,7 +147,7 @@ old_size = adb('shell', 'wm', 'size').decode()
 old_override = re.search(r'Override size: (\d+x\d+)', old_size)
 try:
     adb('reverse', f'tcp:{port}', f'tcp:{port}')
-    if args.mode == 'flow':
+    if args.mode in ('flow', 'plugins'):
         adb('shell', 'am', 'start-foreground-service', '-n', PACKAGE + '/.GatewayService')
         deadline = time.monotonic() + 160
         while True:
@@ -181,10 +181,15 @@ try:
     print(data, flush=True)
     if result.returncode or 'INSTRUMENTATION_CODE: -1' not in data:
         raise RuntimeError('Installed preview acceptance failed')
-    if args.mode == 'flow':
+    if args.mode in ('flow', 'plugins'):
         assert Fixture.installs == ['1.0.1', '1.0.2'], Fixture.installs
+        print('PASS npm transport downloaded each plugin version once')
+    if args.mode == 'flow':
         assert len(Fixture.invocations) == 3, Fixture.invocations
-        print('PASS npm transport downloaded each version once and the gateway made exactly three test calls')
+        print('PASS the gateway made exactly three test calls')
+    elif args.mode == 'workflow':
+        assert len(Fixture.invocations) == 1, Fixture.invocations
+        print('PASS loopback provider received the model request from the signed APK')
 finally:
     try:
         path = f'/data/user/0/{PACKAGE}/files/preview-evidence/{args.mode}'

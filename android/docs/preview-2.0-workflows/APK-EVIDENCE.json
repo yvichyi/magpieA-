@@ -1,0 +1,18 @@
+{
+  "version": "2.0.0-preview5",
+  "versionCode": 18,
+  "core": "0.1.4342",
+  "bun": "1.4.2",
+  "files": [
+    {
+      "filename": "Magpie-Android-2.0.0-preview5-arm64.apk",
+      "bytes": 92251780,
+      "sha256": "40d7ca7ce4e773beacf02e8aa12ae4638e50d4b5d7f36f6f600367b6d6304cf1"
+    },
+    {
+      "filename": "Magpie-Android-2.0.0-preview5-x86_64.apk",
+      "bytes": 96134782,
+      "sha256": "1b193407ed159f4032f505e6dfc9ba18fc1a8649500946bfdd85def8d6df2dd3"
+    }
+  ]
+}

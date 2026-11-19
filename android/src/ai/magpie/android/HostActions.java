@@ -14,10 +14,25 @@ final class HostActions {
     private final Activity a;private final Ui ui;private final Runnable changed;
     private final android.content.SharedPreferences prefs;
     HostActions(Activity a,Ui ui,Runnable changed){this.a=a;this.ui=ui;this.changed=changed;prefs=a.getSharedPreferences("host",0);}
-    void start(){try{GatewayService.state="正在启动";a.startForegroundService(new Intent(a,GatewayService.class));changed.run();}catch(Exception e){Toast.makeText(a,"启动失败："+e.getMessage(),Toast.LENGTH_LONG).show();}}
+    void start() {
+        String previous = GatewayService.state;
+        if (GatewayService.ready || previous.startsWith("正在启动")) return;
+        try {
+            GatewayService.state = "正在启动";
+            a.startForegroundService(new Intent(a, GatewayService.class));
+        } catch (Exception error) {
+            GatewayService.state = previous;
+            Toast.makeText(a, "启动失败：" + error.getMessage(), Toast.LENGTH_LONG).show();
+        }
+        changed.run();
+    }
     void workspace(){
-        new AlertDialog.Builder(a,ui.dialogTheme).setTitle("工作空间").setItems(new String[]{"使用本机网关","连接远程 Magpie","停止本机网关"},(d,index)->{
-            if(index==0){prefs.edit().putBoolean("remote",false).apply();changed.run();if(!GatewayService.ready)start();}
+        boolean running = GatewayService.ready || GatewayService.state.startsWith("正在启动");
+        String local = running ? "使用本机网关" : "启动本机网关";
+        String[] choices = running ? new String[]{local, "连接远程 Magpie", "停止本机网关"}
+                : new String[]{local, "连接远程 Magpie"};
+        new AlertDialog.Builder(a,ui.dialogTheme).setTitle("连接工作区").setItems(choices,(d,index)->{
+            if(index==0){prefs.edit().putBoolean("remote",false).apply();if(!GatewayService.ready&&!GatewayService.state.startsWith("正在启动"))start();else changed.run();}
             else if(index==1)remote();else{a.stopService(new Intent(a,GatewayService.class));changed.run();}
         }).show();
     }

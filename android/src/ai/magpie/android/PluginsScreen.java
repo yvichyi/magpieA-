@@ -3,6 +3,7 @@ package ai.magpie.android;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.os.Handler;
@@ -23,6 +24,10 @@ import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -30,6 +35,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
+import javax.net.ssl.HttpsURLConnection;
 import org.json.JSONObject;
 
 /** Retained plugin workspace shared by the root and its native details. */
@@ -37,23 +44,30 @@ final class PluginsScreen implements AppScreen {
     private static final long POLL = 20_000L;
     private static final long MARKET_POLL = 300_000L;
     private static final int BATCH = 30;
-    private static final String[] TABS = {"已安装", "发现", "内置"};
+    private static final int BUILTIN = 0, DISCOVER = 1, INSTALLED = 2;
+    private static final String[] TABS = {"内置", "发现", "已安装"};
+    private static final String PUBLIC_REGISTRY = "https://raw.githubusercontent.com/magpie-community/plugins/main/registry.json";
+    private static final String BUNDLED_REGISTRY = "plugin-market.json";
+    private static final int MAX_REGISTRY_BYTES = 1024 * 1024;
     final ScreenHost host;
     final Ui ui;
     final Activity activity;
     private final Handler main = new Handler(Looper.getMainLooper());
+    private final SharedPreferences navigation;
     private final ScrollView scroll;
-    private final LinearLayout body, tabs, results, operationPanel, find;
+    private final LinearLayout body, results, operationPanel, find;
+    private final PeriodTabs tabs;
     private final EditText query;
-    private final Button installButton;
+    private final Button searchButton;
     private final Resource<PluginSnapshot.Installed> installed = new Resource<>();
     private final Resource<List<PluginSnapshot.Builtin>> builtins = new Resource<>();
     private final Resource<List<PluginSnapshot.Page>> pages = new Resource<>();
     private final Resource<PluginSnapshot.Discoveries> listings = new Resource<>();
+    private final Resource<PluginSnapshot.Discoveries> publicListings = new Resource<>();
     private final Resource<PluginSnapshot.Discoveries> github = new Resource<>();
     private final Resource<PluginSnapshot.Discoveries> search = new Resource<>();
     private final Resource<PluginSnapshot.UpdateCheck> updates = new Resource<>();
-    private final Resource<?>[] resources = {installed, builtins, pages, listings, github, search, updates};
+    private final Resource<?>[] resources = {installed, builtins, pages, listings, publicListings, github, search, updates};
     private final Runnable poll = this::poll;
     private Scope scope;
     private Object visible;
@@ -110,6 +124,12 @@ final class PluginsScreen implements AppScreen {
         this.host = host;
         ui = host.ui();
         activity = host.activity();
+        navigation = activity.getSharedPreferences("plugin-navigation", Context.MODE_PRIVATE);
+        tab = switch (navigation.getString("tab", "discover")) {
+            case "builtin" -> BUILTIN;
+            case "discover" -> DISCOVER;
+            default -> INSTALLED;
+        };
         scroll = new InsetScrollView(activity);
         scroll.setFillViewport(true);
         scroll.setVerticalScrollBarEnabled(false);
@@ -126,22 +146,26 @@ final class PluginsScreen implements AppScreen {
         heading.addView(refresh, new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
         body.addView(heading);
         ui.space(body, 8);
-        installButton = ui.button("从 npm 安装", true, this::installDialog);
-        body.addView(installButton);
-        ui.space(body, 16);
-        tabs = ui.row();
+        tabs = new PeriodTabs(ui, TABS, tab, this::select);
         body.addView(tabs);
         operationPanel = ui.column();
         operationPanel.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         body.addView(operationPanel);
         find = ui.column();
+        ui.space(find, 14);
         query = input("搜索插件名称或 npm 包", EditorInfo.IME_ACTION_SEARCH, 180);
+        query.setBackground(ui.field(ui.card, 12));
+        query.setPadding(ui.dp(12), ui.dp(8), ui.dp(12), ui.dp(8));
         query.setOnEditorActionListener((v, a, event) -> {
             if (a != EditorInfo.IME_ACTION_SEARCH) return false;
             search();
             return true;
         });
-        find.addView(new AdaptivePair(ui, query, ui.button("搜索 npm", false, this::search), 8));
+        find.addView(query, new LinearLayout.LayoutParams(-1, -2));
+        searchButton = ui.button("搜索 npm", false, this::search);
+        LinearLayout.LayoutParams searchAction = new LinearLayout.LayoutParams(-2, -2);
+        searchAction.topMargin = ui.dp(8);
+        find.addView(searchButton, searchAction);
         body.addView(find);
         results = ui.column();
         body.addView(results);
@@ -171,6 +195,7 @@ final class PluginsScreen implements AppScreen {
         if (!(state instanceof AppearanceState saved)) return;
         scope = new Scope(activity);
         tab = saved.tab();
+        tabs.select(tab, false);
         query.setText(saved.query());
         limit = saved.limit();
         requestedQuery = saved.requestedQuery();
@@ -227,6 +252,7 @@ final class PluginsScreen implements AppScreen {
     private boolean updateScope() {
         Scope next = new Scope(activity);
         if (next.same(scope)) return false;
+        boolean sameWorkspace = scope != null && next.workspace.equals(scope.workspace);
         if (dialog != null) dialog.dismiss();
         generation++;
         scope = next;
@@ -235,7 +261,7 @@ final class PluginsScreen implements AppScreen {
         for (Resource<?> resource : resources) resource.clear();
         requestedQuery = "";
         limit = BATCH;
-        if (query.length() != 0) query.setText("");
+        if (!sameWorkspace && query.length() != 0) query.setText("");
         return true;
     }
 
@@ -244,6 +270,10 @@ final class PluginsScreen implements AppScreen {
     }
 
     private boolean ready() { return AppNavigation.ready(activity) && scope != null && !scope.origin.isEmpty(); }
+
+    private boolean needsWorkspace() {
+        return !ready() || installed.value == null && !installed.error.isEmpty();
+    }
 
     private void poll() {
         if (visible == null || disposed) return;
@@ -260,11 +290,12 @@ final class PluginsScreen implements AppScreen {
     private void refresh(boolean force) {
         if (visible == null || disposed) return;
         if (updateScope()) notifyChange();
+        if (tab == DISCOVER && needsWorkspace() && listings.value == null) readPublicListings(force);
         if (!ready()) return;
         read(installed, POLL, force, api -> PluginSnapshot.installed(api.get("/api/plugins")));
         read(builtins, POLL, force, api -> PluginSnapshot.builtins(api.get("/api/plugins/builtin")));
         read(pages, POLL, force, api -> PluginSnapshot.pages(api.get("/api/plugin-pages")));
-        if (tab == 1) {
+        if (tab == DISCOVER) {
             read(listings, MARKET_POLL, force, api -> PluginSnapshot.discovery(api.get("/api/plugins/listings"), PluginSnapshot.Feed.LISTINGS));
             read(github, MARKET_POLL, force, api -> PluginSnapshot.discovery(api.get("/api/plugins/github"), PluginSnapshot.Feed.GITHUB));
             if (force && !requestedQuery.isEmpty() && search.value == null) requestSearch();
@@ -272,13 +303,17 @@ final class PluginsScreen implements AppScreen {
     }
 
     private <T> void read(Resource<T> resource, long interval, boolean force, Read<T> work) {
+        readResource(resource, interval, force, receive -> request(scope, work, receive));
+    }
+
+    private <T> void readResource(Resource<T> resource, long interval, boolean force, Consumer<ReadResult<T>> start) {
         long now = SystemClock.elapsedRealtime();
         if (resource.pending || !force && resource.readAt != 0 && now - resource.readAt < interval - 500) return;
         resource.pending = true;
         resource.readAt = now;
         int request = ++resource.request;
         notifyChange();
-        request(scope, work, (value, error) -> {
+        start.accept((value, error) -> {
             if (request != resource.request) return;
             resource.pending = false;
             resource.error = error;
@@ -288,7 +323,65 @@ final class PluginsScreen implements AppScreen {
                 if (resource == installed || resource == builtins) reconcile(resource == builtins, now);
             }
             notifyChange();
+            if (resource == installed && tab == DISCOVER && needsWorkspace() && listings.value == null) {
+                readPublicListings(false);
+            }
         });
+    }
+
+    private void readPublicListings(boolean force) {
+        Scope desired = scope;
+        int epoch = generation;
+        readResource(publicListings, MARKET_POLL, force,
+                receive -> new Thread(() -> {
+                    PluginSnapshot.Discoveries result = null;
+                    String error = "";
+                    try {
+                        result = fetchPublicListings();
+                    } catch (Exception e) {
+                        error = safeMessage(e, desired);
+                        try (InputStream bundled = activity.getAssets().open(BUNDLED_REGISTRY)) {
+                            result = parseRegistry(bundled);
+                        } catch (Exception ignored) {
+                            // Retain the public request error if the bundled copy is unavailable.
+                        }
+                    }
+                    PluginSnapshot.Discoveries value = result;
+                    String failure = error;
+                    main.post(() -> {
+                        if (generation == epoch && current(desired)) receive.accept(value, failure);
+                    });
+                }, "magpie-public-plugin-registry").start());
+    }
+
+    private static PluginSnapshot.Discoveries fetchPublicListings() throws Exception {
+        HttpsURLConnection connection = (HttpsURLConnection) new URL(PUBLIC_REGISTRY).openConnection();
+        connection.setInstanceFollowRedirects(false);
+        connection.setConnectTimeout(4000);
+        connection.setReadTimeout(6000);
+        try {
+            int status = connection.getResponseCode();
+            if (status != 200) throw new IOException("HTTP " + status);
+            try (InputStream input = connection.getInputStream()) {
+                return parseRegistry(input);
+            }
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    private static PluginSnapshot.Discoveries parseRegistry(InputStream input) throws Exception {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        byte[] buffer = new byte[8192];
+        for (int size; (size = input.read(buffer)) != -1; ) {
+            if (output.size() + size > MAX_REGISTRY_BYTES) throw new IOException("目录数据过大");
+            output.write(buffer, 0, size);
+        }
+        JSONObject registry = new JSONObject(new String(output.toByteArray(), StandardCharsets.UTF_8));
+        String listings = new JSONObject().put("listings", registry.getJSONArray("plugins")).toString();
+        PluginSnapshot.Discoveries result = PluginSnapshot.discovery(listings, PluginSnapshot.Feed.LISTINGS);
+        if (result.entries().isEmpty()) throw new IOException("目录中没有插件");
+        return result;
     }
 
     <T> void request(Scope desired, Read<T> work, ReadResult<T> receive) {
@@ -313,32 +406,31 @@ final class PluginsScreen implements AppScreen {
         if (next == tab) return;
         hideKeyboard(query);
         tab = next;
+        navigation.edit().putString("tab", switch (next) {
+            case BUILTIN -> "builtin";
+            case DISCOVER -> "discover";
+            default -> "installed";
+        }).apply();
         limit = BATCH;
         restoredScroll = 0;
-        if (tab == 1) refresh(false);
+        if (tab == DISCOVER) refresh(false);
         render();
         scroll.smoothScrollTo(0, 0);
     }
 
+    private void openTab(int next) {
+        tabs.select(next, true);
+        select(next);
+    }
+
     private void render() {
-        installButton.setEnabled(writable(false));
-        tabs.removeAllViews();
-        for (int i = 0; i < TABS.length; i++) {
-            int index = i;
-            Button item = ui.button(TABS[i], i == tab, () -> select(index));
-            item.setSelected(i == tab);
-            item.setMinWidth(0);
-            item.setMinimumWidth(0);
-            item.setPadding(ui.dp(3), 0, ui.dp(3), 0);
-            if (i != 0) ui.gap(tabs, 6);
-            tabs.addView(item, new LinearLayout.LayoutParams(0, -2, 1));
-        }
         showOperation(operationPanel);
-        find.setVisibility(tab == 1 ? View.VISIBLE : View.GONE);
+        find.setVisibility(tab == DISCOVER ? View.VISIBLE : View.GONE);
         renderResults();
         boolean hasRows = switch (tab) {
-            case 1 -> loaded(listings) && loaded(github) && (requestedQuery.isEmpty() || loaded(search));
-            case 2 -> builtins.value != null;
+            case DISCOVER -> needsWorkspace() ? loaded(communityDirectory())
+                    : loaded(listings) && loaded(github) && (requestedQuery.isEmpty() || loaded(search));
+            case BUILTIN -> builtins.value != null;
             default -> installed.value != null;
         };
         if (restoredScroll > 0 && hasRows) {
@@ -351,37 +443,47 @@ final class PluginsScreen implements AppScreen {
     private static boolean loaded(Resource<?> resource) { return resource.value != null || !resource.error.isEmpty(); }
 
     private void renderResults() {
+        searchButton.setVisibility(tab == DISCOVER && !needsWorkspace() && !queryText().isEmpty() ? View.VISIBLE : View.GONE);
         results.removeAllViews();
         ui.space(results, 20);
-        if (!ready()) {
-            heading(results, "工作空间尚未连接");
-            note(results, "在“接入”连接远程工作空间，或启动本机网关。", false);
-            button(results, "前往接入", false, () -> host.openRoot("connect"));
+        if (tab == DISCOVER) {
+            renderDiscovery();
             return;
         }
-        switch (tab) {
-            case 0: renderInstalled(); break;
-            case 1: renderDiscovery(); break;
-            default: renderBuiltins();
+        if (!ready()) {
+            heading(results, tab == INSTALLED ? "连接工作区后查看已安装插件" : "连接工作区后管理内置插件");
+            button(results, "连接工作区", true, host::openWorkspace);
+            if (tab == INSTALLED) button(results, "发现插件", false, () -> openTab(DISCOVER));
+            return;
         }
-        if (tab != 1) renderExtensions();
+        if (tab == INSTALLED) renderInstalled();
+        else renderBuiltins();
+        renderExtensions();
     }
 
     private void renderInstalled() {
         PluginSnapshot.Installed data = installed.value;
         sourceStatus(results, installed, "已安装插件");
-        if (data == null) return;
+        if (data == null) {
+            if (needsWorkspace()) button(results, "连接工作区", false, host::openWorkspace);
+            return;
+        }
         if (!data.error().isEmpty()) note(results, "插件运行时：" + cap(data.error(), 1800), true);
-        note(results, data.bun() ? "Bun" + (data.bunVersion().isEmpty() ? " 已就绪" : " " + data.bunVersion())
-                : "Bun 尚未就绪，首次安装时网关会尝试下载运行时。", false);
         if (data.entries().isEmpty()) {
             heading(results, "还没有安装插件");
-            button(results, "发现插件", false, () -> select(1));
+            ui.space(results, 8);
+            Button browse = ui.button("发现插件", true, () -> openTab(DISCOVER));
+            if (writable(false)) {
+                results.addView(new AdaptivePair(ui, browse, ui.button("从 npm 安装", false, this::installDialog), 8));
+            } else results.addView(browse);
+            runtimeStatus(data);
             return;
         }
         Button check = ui.button(updates.pending ? "正在检查更新…" : "检查更新", false, this::checkUpdates);
         check.setEnabled(!updates.pending);
-        results.addView(check);
+        if (writable(false)) {
+            results.addView(new AdaptivePair(ui, check, ui.button("从 npm 安装", false, this::installDialog), 8));
+        } else results.addView(check);
         if (!updates.error.isEmpty()) note(results, "检查更新失败：" + updates.error, true);
         if (updates.value != null) {
             String summary = updates.value.available() == 0 ? "已完成版本检查" : updates.value.available() + " 个插件有更新";
@@ -398,21 +500,42 @@ final class PluginsScreen implements AppScreen {
                     () -> open(PluginDetailScreen.installed(this, item.spec(), scope)));
         }
         more(results, entries.size());
+        runtimeStatus(data);
+    }
+
+    private void runtimeStatus(PluginSnapshot.Installed data) {
+        note(results, data.bun() ? "Bun" + (data.bunVersion().isEmpty() ? " 已就绪" : " " + data.bunVersion())
+                : "Bun 尚未就绪，首次安装时网关会尝试下载运行时。", false);
+    }
+
+    private Resource<PluginSnapshot.Discoveries> communityDirectory() {
+        return listings.value == null && needsWorkspace() ? publicListings : listings;
     }
 
     private void renderDiscovery() {
         String text = queryText();
+        boolean publicOnly = needsWorkspace();
+        if (publicOnly) {
+            note(results, "连接工作区后可搜索 npm 并安装插件。", false);
+            button(results, "连接工作区", false, host::openWorkspace);
+            ui.space(results, 16);
+        }
         if (installed.value != null && !installed.value.registry().isEmpty()) {
             note(results, "npm 镜像 · " + installed.value.registry(), false);
         }
-        if (!text.isEmpty() && text.equals(requestedQuery)) {
+        if (!publicOnly && !text.isEmpty() && text.equals(requestedQuery)) {
             heading(results, "npm 搜索结果");
             sourceStatus(results, search, "npm 搜索结果");
             if (search.value != null) discoveryRows(search.value.entries(), "npm 没有返回匹配的插件");
         }
         heading(results, "社区目录");
-        sourceStatus(results, listings, "社区目录");
-        if (listings.value != null) discoveryRows(filter(listings.value.entries(), text, true), "目录中没有匹配的插件");
+        Resource<PluginSnapshot.Discoveries> community = communityDirectory();
+        if (community == publicListings && community.value != null && !community.error.isEmpty()) {
+            note(results, "公开目录暂不可达，正在显示随安装包提供的上游社区目录。", false);
+            button(results, "重新读取", false, () -> readPublicListings(true));
+        } else sourceStatus(results, community, "社区目录");
+        if (community.value != null) discoveryRows(filter(community.value.entries(), text, true), "目录中没有匹配的插件");
+        if (publicOnly) return;
         ui.space(results, 20);
         heading(results, "GitHub 插件");
         sourceStatus(results, github, "GitHub 目录");
@@ -420,6 +543,7 @@ final class PluginsScreen implements AppScreen {
             if (!github.value.error().isEmpty()) note(results, "GitHub 目录暂不完整：" + cap(github.value.error(), 1000), true);
             discoveryRows(filter(github.value.entries(), text, false), github.value.error().isEmpty() ? "暂无匹配的 GitHub 插件" : "");
         }
+        if (text.isEmpty() && writable(false)) button(results, "从 npm 安装", false, this::installDialog);
     }
 
     private static List<PluginSnapshot.Discovery> filter(List<PluginSnapshot.Discovery> source, String query, boolean community) {
@@ -435,7 +559,7 @@ final class PluginsScreen implements AppScreen {
             PluginSnapshot.Discovery item = items.get(i);
             String state = installed.value != null && installed.value.match(item) != null ? "已安装" : "";
             row(results, "plug", item.name(), item.description().isEmpty() ? item.spec() : item.description(),
-                    join(state, item.kindLabel(), item.source()), () -> open(PluginDetailScreen.discovery(this, item, scope)));
+                    join(state, item.kindLabel(), item.source()), () -> openDiscovery(item));
         }
         if (items.isEmpty() && !empty.isEmpty()) note(results, empty, false);
         more(results, items.size());
@@ -486,6 +610,7 @@ final class PluginsScreen implements AppScreen {
 
     private void search() {
         hideKeyboard(query);
+        if (needsWorkspace()) return;
         requestedQuery = queryText();
         search.clear();
         if (!requestedQuery.isEmpty()) requestSearch();
@@ -509,6 +634,19 @@ final class PluginsScreen implements AppScreen {
         if (current(scope) && ready()) host.openDetail("插件详情", screen);
     }
 
+    private void openDiscovery(PluginSnapshot.Discovery entry) {
+        if (!current(scope)) return;
+        if (!needsWorkspace()) {
+            open(PluginDetailScreen.discovery(this, entry, scope));
+            return;
+        }
+        String details = cap(entry.spec(), 180) + "\n" + entry.source();
+        if (!entry.description().isEmpty()) details += "\n\n" + cap(entry.description(), 1400);
+        show(new AlertDialog.Builder(activity, ui.dialogTheme).setTitle(cap(entry.name(), 180))
+                .setMessage(details).setNegativeButton("关闭", null)
+                .setPositiveButton("连接工作区", (dialog, which) -> host.openWorkspace()).create());
+    }
+
     private void installDialog() {
         if (!writable(false)) return;
         Scope expected = scope;
@@ -527,7 +665,7 @@ final class PluginsScreen implements AppScreen {
                 PluginOperation operation = PluginOperation.installNpm(input.getText().toString());
                 if (operation.observed(installed.value, Collections.emptyList())) { input.setError("该插件已安装，可在已安装列表查看。"); return; }
                 install.dismiss();
-                select(0);
+                openTab(INSTALLED);
                 submit(expected, operation);
             } catch (IllegalArgumentException e) { input.setError(e.getMessage()); }
         });
@@ -690,7 +828,8 @@ final class PluginsScreen implements AppScreen {
         String title = destination.equals("agents") ? "Agent 配置" : "会话";
         show(new AlertDialog.Builder(activity, ui.dialogTheme).setTitle(title)
                 .setMessage("此功能用于远程电脑。连接远程工作空间后即可打开。")
-                .setPositiveButton("确定", null).create());
+                .setNegativeButton("取消", null)
+                .setPositiveButton("连接工作区", (dialog, which) -> host.openWorkspace()).create());
     }
 
     void advanced(String view, String key, String value) {

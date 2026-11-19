@@ -4,6 +4,9 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.LayerDrawable;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.LinearLayout;
@@ -82,6 +85,25 @@ final class CatalogViews {
         button.setFocusable(true);
         button.setOnClickListener(v -> action.run());
         return button;
+    }
+
+    static TextView tab(Ui ui, String label, Runnable action) {
+        TextView tab = action(ui, label, action);
+        ui.typography(tab, Ui.Type.LABEL);
+        tab.setPadding(ui.dp(2), ui.dp(6), ui.dp(2), ui.dp(6));
+        return tab;
+    }
+
+    static void selectTab(Ui ui, TextView tab, boolean selected) {
+        tab.setSelected(selected);
+        tab.setTextColor(selected ? ui.accent : ui.muted);
+        tab.setTypeface(ui.font(false, selected ? 650 : 450));
+        LayerDrawable background = new LayerDrawable(new Drawable[]{
+                ui.ripple(Color.TRANSPARENT, 0), new ColorDrawable(selected ? ui.accent : Color.TRANSPARENT)
+        });
+        background.setLayerHeight(1, ui.dp(2));
+        background.setLayerGravity(1, Gravity.BOTTOM);
+        tab.setBackground(background);
     }
 
     static void copy(Ui ui, String label, String value) {

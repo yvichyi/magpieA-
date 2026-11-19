@@ -69,8 +69,13 @@ public final class MainActivity extends Activity implements ScreenHost {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         ui = new Ui(this);
+        SharedPreferences prefs = getSharedPreferences("host", MODE_PRIVATE);
+        Intent intent = getIntent();
+        boolean firstProvider = state == null && !AppNavigation.remote(this)
+                && !prefs.getBoolean("launched", false)
+                && !intent.hasExtra("root") && !intent.hasExtra("catalogTab");
         if (state != null) rootId = normalize(state.getString("root"));
-        else rootId = initialRoot(getIntent(), "connect");
+        else rootId = initialRoot(intent, firstProvider ? "home" : "connect");
         glass = new GlassFrame(this);
         header = ui.row();
         header.setMinimumHeight(ui.dp(60));
@@ -84,9 +89,15 @@ public final class MainActivity extends Activity implements ScreenHost {
         workspaceScope = scope();
         if (getLastNonConfigurationInstance() instanceof RetainedAppearance previous
                 && previous.scope().matches(workspaceScope)) retainedAppearanceState = previous.screens();
+        if (firstProvider) {
+            CatalogScreen catalog = (CatalogScreen) create("home");
+            catalog.openProviders();
+            roots.put("home", new Destination(catalog));
+        } else if (state != null) {
+            restoreCatalogTab(state.getInt("catalogTab", -1));
+        }
         showRoot(rootId, PageMotion.NONE);
 
-        SharedPreferences prefs = getSharedPreferences("host", MODE_PRIVATE);
         if (Build.VERSION.SDK_INT >= 33 && !prefs.getBoolean("askedNotifications", false)
                 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             prefs.edit().putBoolean("askedNotifications", true).apply();
@@ -127,6 +138,7 @@ public final class MainActivity extends Activity implements ScreenHost {
 
     @Override protected void onSaveInstanceState(Bundle state) {
         state.putString("root", rootId);
+        state.putInt("catalogTab", catalogTab());
         super.onSaveInstanceState(state);
     }
 
@@ -160,6 +172,10 @@ public final class MainActivity extends Activity implements ScreenHost {
         if (request == CatalogScreen.SETUP_PROVIDER && result == RESULT_OK) {
             openRoot("home");
             if (data != null) ((CatalogScreen) destination().base()).focusProvider(data.getStringExtra("providerId"));
+        } else if (request == ConnectScreen.SETUP_FOR_CONNECTION && result == RESULT_OK && data != null) {
+            openRoot("connect");
+            ((ConnectScreen) destination().base()).focusProvider(data.getStringExtra("providerId"));
+            refresh();
         }
     }
 
@@ -191,12 +207,25 @@ public final class MainActivity extends Activity implements ScreenHost {
 
     private Destination destination() { return roots.get(rootId); }
 
+    private int catalogTab() {
+        Destination catalog = roots.get("home");
+        return catalog == null ? -1 : ((CatalogScreen) catalog.base()).selectedTab();
+    }
+
+    private void restoreCatalogTab(int tab) {
+        if (tab < 0) return;
+        Destination catalog = roots.computeIfAbsent("home", id -> new Destination(create(id)));
+        ((CatalogScreen) catalog.base()).openTab(tab);
+    }
+
     private boolean resetIfWorkspaceChanged() {
         CatalogLoad.Scope current = scope();
         if (current.matches(workspaceScope)) return false;
+        int tab = catalogTab();
         disposePages();
         retainedAppearanceState = null;
         workspaceScope = current;
+        restoreCatalogTab(tab);
         showRoot(rootId, PageMotion.NONE);
         return true;
     }
@@ -314,7 +343,7 @@ public final class MainActivity extends Activity implements ScreenHost {
         workspace.setMinHeight(ui.dp(48));
         workspace.setBackground(ui.glassControl(false));
         workspace.setContentDescription("选择工作空间");
-        workspace.setOnClickListener(view -> new HostActions(this, ui, this::refresh).workspace());
+        workspace.setOnClickListener(view -> openWorkspace());
         UiMotion.press(workspace);
         header.addView(workspace);
         ui.gap(header, 4);
@@ -329,6 +358,7 @@ public final class MainActivity extends Activity implements ScreenHost {
 
     @Override public void advanced(String view) { AppNavigation.detail(this, view); }
     @Override public void advanced(String view, String key, String value) { AppNavigation.detail(this, view, key, value); }
+    @Override public void openWorkspace() { new HostActions(this, ui, this::refresh).workspace(); }
 
     @Override public void connect(String reference) {
         pausePage();

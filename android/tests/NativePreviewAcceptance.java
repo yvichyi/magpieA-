@@ -1,5 +1,6 @@
 package ai.magpie.android;
 
+import android.accessibilityservice.AccessibilityService;
 import android.app.Activity;
 import android.app.Application;
 import android.app.Instrumentation;
@@ -63,11 +64,13 @@ public final class NativePreviewAcceptance extends Instrumentation {
             });
             home = (MainActivity) startActivitySync(new Intent(target, MainActivity.class)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
-            if (!mode.equals("glass") && !mode.equals("themes") && !mode.startsWith("typography")) {
+            if (!mode.equals("workflow") && !mode.equals("glass") && !mode.equals("themes") && !mode.startsWith("typography")) {
                 if (!GatewayService.ready) click("启动网关");
                 await(() -> GatewayService.ready, 180_000, "Bundled gateway did not start");
             }
-            if (mode.equals("flow")) {
+            if (mode.equals("workflow")) {
+                testWorkspaceWorkflow();
+            } else if (mode.equals("flow")) {
                 core = new CoreApi(GatewayService.managementOrigin, GatewayService.key(target));
                 require(core.get("/api/providers").contains("android-preview-preserved"), "1.12 provider absent after upgrade");
                 stage("UPGRADE_PROVIDER_RETAINED");
@@ -86,6 +89,7 @@ public final class NativePreviewAcceptance extends Instrumentation {
                 singleLine("服务商");
                 capture("02-models-large");
                 click("插件");
+                click("已安装");
                 visible("从 npm 安装");
                 capture("03-plugins-large");
                 testInsights(false);
@@ -100,6 +104,9 @@ public final class NativePreviewAcceptance extends Instrumentation {
                 testThemeSelection();
             } else if (mode.startsWith("typography")) {
                 testTypography();
+            } else if (mode.equals("plugins")) {
+                core = new CoreApi(GatewayService.managementOrigin, GatewayService.key(target));
+                testPlugin();
             } else if (mode.equals("stats")) {
                 capture("04-connection");
                 testInsights(true);
@@ -118,7 +125,20 @@ public final class NativePreviewAcceptance extends Instrumentation {
 
     private void addProvider() throws Exception {
         click("模型");
+        click("服务商");
         click("添加服务商");
+        saveFixtureProvider("保存并查看模型");
+        awaitText(reference, 40_000);
+        capture("02-model-directory");
+        clickContains(reference);
+        awaitText("模型详情", 20_000);
+        capture("03-model-detail");
+        click("使用此目标接入");
+        awaitText(reference, 30_000);
+        stage("NATIVE_PROVIDER_FORM_AND_MODEL_DETAIL");
+    }
+
+    private void saveFixtureProvider(String saveLabel) throws Exception {
         waitActivity(ProviderSetupActivity.class);
         capture("01-provider-setup");
         fill("服务商地址", fixture + "/v1");
@@ -128,7 +148,7 @@ public final class NativePreviewAcceptance extends Instrumentation {
         click("读取模型");
         awaitText("preview-echo", 60_000);
         click("全选");
-        click("保存并查看模型");
+        click(saveLabel);
         waitActivity(MainActivity.class);
         JSONArray sources = new JSONObject(core.get("/api/providers")).getJSONArray("providers");
         for (int i = 0; i < sources.length(); i++) {
@@ -136,14 +156,60 @@ public final class NativePreviewAcceptance extends Instrumentation {
             if (source.optString("name").equals(sourceName)) reference = source.getString("id") + "/preview-echo";
         }
         require(reference != null, "Native form did not save fixture provider");
+    }
+
+    private void testWorkspaceWorkflow() throws Exception {
+        click("模型");
+        capture("01-models-offline");
+        assertWorkspaceChooser("home");
+        click("插件");
+        click("已安装");
+        capture("02-plugins-offline");
+        assertWorkspaceChooser("plugins");
+        click("用量");
+        capture("03-usage-offline");
+        assertWorkspaceChooser("usage");
+        stage("WORKSPACE_CHOOSER_STAYS_IN_CONTEXT");
+        click("接入");
+        click("连接远程工作区");
+        waitAccessibility("保存并连接", 20_000);
+        dismissDialog();
+        click("启动网关");
+        await(() -> GatewayService.ready, 180_000, "Bundled gateway did not start");
+        core = new CoreApi(GatewayService.managementOrigin, GatewayService.key(target));
+        click("添加服务商");
+        saveFixtureProvider("保存并接入");
         awaitText(reference, 40_000);
-        capture("02-model-directory");
-        clickContains(reference);
-        awaitText("模型详情", 20_000);
-        capture("03-model-detail");
-        click("使用此目标接入");
-        awaitText(reference, 30_000);
-        stage("NATIVE_PROVIDER_FORM_AND_MODEL_DETAIL");
+        require("connect".equals(home.currentRootId()), "Provider save left the connection screen");
+        click("OpenAI");
+        capture("04-connection-ready");
+        click("测试调用");
+        awaitText("OpenAI 已收到响应", 55_000);
+        capture("05-call-success");
+        stage("PROVIDER_SAVE_CONTINUES_TO_REAL_MODEL_CALL");
+        target.getSharedPreferences("host", 0).edit().remove("launched").commit();
+        home = (MainActivity) startActivitySync(new Intent(target, MainActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
+        waitActivity(MainActivity.class);
+        ui(() -> {
+            View tab = find(decor(), "服务商", false, true);
+            require("home".equals(home.currentRootId()) && tab != null && tab.isSelected(),
+                    "Provider tab is not selected when launching for the first time");
+        });
+        stage("FIRST_LAUNCH_OPENS_PROVIDERS");
+    }
+
+    private void assertWorkspaceChooser(String root) throws Exception {
+        click("连接工作区");
+        waitAccessibility("连接远程 Magpie", 20_000);
+        require(root.equals(home.currentRootId()), "Workspace chooser switched away from " + root);
+        dismissDialog();
+    }
+
+    private void dismissDialog() throws Exception {
+        require(getUiAutomation().performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK),
+                "Could not close the workspace dialog");
+        await(() -> decor().hasWindowFocus(), 20_000, "Workspace dialog did not close");
     }
 
     private void testConnection() throws Exception {
@@ -206,6 +272,7 @@ public final class NativePreviewAcceptance extends Instrumentation {
 
     private void testPlugin() throws Exception {
         click("插件");
+        click("已安装");
         awaitText("Bun", 45_000);
         capture("08-plugins");
         click("从 npm 安装");
@@ -240,13 +307,13 @@ public final class NativePreviewAcceptance extends Instrumentation {
 
     private void testInsights(boolean details) throws Exception {
         click("用量");
-        awaitText("用量概览", 40_000);
+        awaitText("Token 总量", 40_000);
         capture("12-usage-overview");
         click("分析");
-        awaitText("用量分析", 35_000);
+        awaitText("Token 构成", 35_000);
         capture("13-usage-analysis");
         click("日历");
-        awaitText("每日用量", 35_000);
+        awaitText("上个月", 35_000);
         capture("14-usage-calendar");
         click("请求");
         awaitText("条匹配记录", 35_000);
@@ -328,12 +395,12 @@ public final class NativePreviewAcceptance extends Instrumentation {
                 "Default appearance must put the bundled photo beneath the chrome"));
         capture("01-glass-connection");
         click("模型");
-        fill("搜索模型", "preview");
+        click("服务商");
         changeTheme(Appearance.SWISS);
         ui(() -> {
             require("home".equals(home.currentRootId()), "Theme change lost the selected root");
-            EditText search = input(decor(), "搜索模型");
-            require(search != null && "preview".contentEquals(search.getText()), "Theme change lost the catalog query");
+            View tab = find(decor(), "服务商", false, true);
+            require(tab != null && tab.isSelected(), "Theme change lost the provider tab");
             require(glassFrame().getBackground() instanceof android.graphics.drawable.ColorDrawable,
                     "Swiss appearance must use a flat reading surface");
         });
@@ -346,7 +413,7 @@ public final class NativePreviewAcceptance extends Instrumentation {
         changeTheme(Appearance.GLASS);
         ui(() -> require(glassFrame().getBackground() instanceof ArchitectureBackdrop,
                 "Returning to glass must restore the photograph"));
-        stage("THEMES_SWITCH_BOTH_WAYS_AND_KEEP_MODEL_QUERY");
+        stage("THEMES_SWITCH_BOTH_WAYS_AND_KEEP_PROVIDER_TAB");
     }
 
     private void changeTheme(Appearance theme) throws Exception {

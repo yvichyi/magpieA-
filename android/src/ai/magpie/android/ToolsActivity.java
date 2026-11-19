@@ -13,7 +13,6 @@ import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
-import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -34,10 +33,9 @@ public final class ToolsActivity extends Activity {
     private HostActions actions;
     private SharedPreferences navigation;
     private LinearLayout rows;
-    private TextView workspace, status;
+    private TextView status;
     private EditText search;
     private ScrollView scroll;
-    private Button start;
     private String parentRoot;
     private final Handler main = new Handler(Looper.getMainLooper());
     private boolean active, busy, wasReady;
@@ -74,11 +72,6 @@ public final class ToolsActivity extends Activity {
         scroll.addView(content);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
 
-        workspace = ui.text("", 15, ui.ink, true);
-        content.addView(directoryRow(workspace, "切换工作空间", actions::workspace));
-        start = ui.button("启动本机网关", true, actions::start);
-        content.addView(start);
-        ui.space(content, 16);
         search = new EditText(this);
         search.setSingleLine();
         search.setTextSize(16);
@@ -97,9 +90,9 @@ public final class ToolsActivity extends Activity {
         status = ui.text("", 14, ui.muted, false);
         status.setVisibility(View.GONE);
         status.setPadding(0, ui.dp(12), 0, 0);
-        content.addView(status);
         rows = ui.column();
         content.addView(rows);
+        content.addView(status);
         search.addTextChangedListener(new TextWatcher() {
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             public void onTextChanged(CharSequence s, int start, int before, int count) { render(); }
@@ -186,14 +179,7 @@ public final class ToolsActivity extends Activity {
             if(changedWorkspace) search.setText(navigation.getString(queryKey(scope), ""));
             render();
         }
-        boolean remote = AppNavigation.remote(this);
         boolean ready = AppNavigation.ready(this);
-        String label = remote ? "远程工作空间 · " + next.address() : "本机工作空间 · " + GatewayService.state;
-        if(!label.contentEquals(workspace.getText())) workspace.setText(label);
-        start.setVisibility(remote || ready ? View.GONE : View.VISIBLE);
-        boolean launching = GatewayService.state.startsWith("正在启动");
-        start.setEnabled(!launching);
-        start.setText(launching ? "正在启动…" : "启动本机网关");
         if(ready && !wasReady && active) loadPages();
         wasReady = ready;
     }
@@ -201,21 +187,26 @@ public final class ToolsActivity extends Activity {
     private void render() {
         rows.removeAllViews();
         String query = search.getText().toString().trim().toLowerCase(Locale.ROOT);
-        int count = appearanceSection(query) + accessibilitySection(query);
-        count += section("网关与隐私", query, new String[][] {
+        int count = general(query);
+        count += section("用量", query, new String[][] {
+            {"usagePreferences", "额度与用量设置", "额度显示、币种和提醒"}
+        });
+        count += section("网络与共享", query, new String[][] {
             {"gateway", "网关与访问密钥", "接入地址、访问密钥和调用配额"},
-            {"network", "网络与 LAN 共享", "局域网访问、代理和远程连接配置"},
-            {"masking", "隐私脱敏", "管理请求内容中的隐私保护"},
+            {"network", "网络与 LAN 共享", "局域网访问和代理设置"},
+            {"workspace", "工作区", "切换本机网关或远程工作空间"}
+        });
+        count += section("模型", query, new String[][] {
+            {"subscription", "订阅登录与高级添加", "登录订阅，或填写完整服务商参数"},
             {"routing", "请求路由", "配置请求的分配、回退和转换"}
         });
-        count += section("应用与数据", query, new String[][] {
-            {"settings", "核心设置", "语言、模型行为和工作空间偏好"},
-            {"backup", "设置与备份", "创建加密备份、恢复和同步"},
-            {"diagnostics", "运行诊断", "本机核心状态和脱敏日志"},
-            {"about", "关于与开源许可", "Android " + HostActions.APP_VERSION + " · 核心 v" + HostActions.CORE_VERSION}
+        count += section("隐私", query, new String[][] {
+            {"masking", "隐私脱敏", "管理请求内容中的隐私保护"}
         });
-        count += section("服务商与扩展", query, new String[][] {
-            {"subscription", "订阅登录与高级添加", "登录订阅，或填写完整服务商参数"},
+        count += section("同步与备份", query, new String[][] {
+            {"backup", "设置与备份", "创建加密备份、恢复和同步"}
+        });
+        count += section("扩展", query, new String[][] {
             {"library", "资料库", "指令、MCP、技能和子 Agent"},
             {"agents", "Agent 配置", "管理远程电脑的 Agent 接入"},
             {"sessions", "会话", "查看远程工作空间的会话"}
@@ -225,6 +216,10 @@ public final class ToolsActivity extends Activity {
             for(Page page : pages) entries.add(new String[] {page.id(), page.title(), ""});
             count += section("插件页面", query, entries.toArray(new String[0][]), true);
         }
+        count += section("关于", query, new String[][] {
+            {"diagnostics", "运行诊断", "本机核心状态和脱敏日志"},
+            {"about", "关于与开源许可", "Android " + HostActions.APP_VERSION + " · 核心 v" + HostActions.CORE_VERSION}
+        });
         if(count == 0) {
             ui.space(rows, 24);
             rows.addView(ui.text("没有匹配的设置", 16, ui.ink, true));
@@ -233,15 +228,24 @@ public final class ToolsActivity extends Activity {
         }
     }
 
-    private int appearanceSection(String query) {
-        if (!matches(query, "外观", "界面主题 液态玻璃 瑞士风格")) return 0;
-        heading("外观");
-        LinearLayout label = ui.column();
-        label.addView(ui.text("界面主题", Ui.Type.ROW));
-        ui.space(label, 4);
-        label.addView(ui.text(ui.appearance.label, Ui.Type.SUPPORT));
-        rows.addView(directoryRow(label, "选择界面主题", this::chooseAppearance));
-        return 1;
+    private int general(String query) {
+        String title = "常规";
+        String transparency = "降低透明度";
+        String motion = "减少动态效果";
+        boolean theme = matches(query, title, "外观 界面主题 液态玻璃 瑞士风格");
+        boolean core = matches(query, title, "核心设置 语言 通用偏好");
+        boolean showTransparency = matches(query, title, "辅助功能 " + transparency);
+        boolean showMotion = matches(query, title, "辅助功能 " + motion);
+        int count = (theme ? 1 : 0) + (core ? 1 : 0) + (showTransparency ? 1 : 0) + (showMotion ? 1 : 0);
+        if (count == 0) return 0;
+        heading(title);
+        if (theme) setting("界面主题", ui.appearance.label, "选择界面主题", this::chooseAppearance);
+        if (core) setting("核心设置", "语言和通用偏好", "打开核心设置", () -> open("settings", "核心设置"));
+        if (showTransparency) preference(transparency, GlassOptions.reduceTransparency(this),
+                value -> GlassOptions.setReduceTransparency(this, value));
+        if (showMotion) preference(motion, GlassOptions.reduceMotion(this),
+                value -> GlassOptions.setReduceMotion(this, value));
+        return count;
     }
 
     private void chooseAppearance() {
@@ -255,21 +259,6 @@ public final class ToolsActivity extends Activity {
                     Ui.setAppearance(this, themes[selected]);
                     recreate();
                 }).setNegativeButton("取消", null).show();
-    }
-
-    private int accessibilitySection(String query) {
-        String title = "辅助功能";
-        String transparency = "降低透明度";
-        String motion = "减少动态效果";
-        boolean showTransparency = matches(query, title, transparency);
-        boolean showMotion = matches(query, title, motion);
-        if(!showTransparency && !showMotion) return 0;
-        heading(title);
-        if(showTransparency) preference(transparency, GlassOptions.reduceTransparency(this),
-            value -> GlassOptions.setReduceTransparency(this, value));
-        if(showMotion) preference(motion, GlassOptions.reduceMotion(this),
-            value -> GlassOptions.setReduceMotion(this, value));
-        return (showTransparency ? 1 : 0) + (showMotion ? 1 : 0);
     }
 
     private void preference(String label, boolean checked, java.util.function.Consumer<Boolean> persist) {
@@ -294,7 +283,7 @@ public final class ToolsActivity extends Activity {
     }
 
     private void heading(String title) {
-        ui.space(rows, 25);
+        ui.space(rows, 20);
         TextView label = ui.text(title, Ui.Type.SECTION);
         rows.addView(label);
         ui.space(rows, 6);
@@ -313,19 +302,23 @@ public final class ToolsActivity extends Activity {
         for(String[] item : entries) {
             if(!matches(query, title, item[1] + " " + item[2])) continue;
             if(count++ == 0) heading(title);
-            LinearLayout copy = ui.column();
-            copy.addView(ui.text(item[1], Ui.Type.ROW));
-            if(!item[2].isEmpty()) {
-                ui.space(copy, 4);
-                copy.addView(ui.text(item[2], Ui.Type.SUPPORT));
-            }
-            rows.addView(directoryRow(copy, "打开" + item[1], () -> {
+            setting(item[1], item[2], "打开" + item[1], () -> {
                 if(pluginPage) openAdvanced(item[0], item[1], null);
                 else open(item[0], item[1]);
-            }));
-            ui.rule(rows, 0);
+            });
         }
         return count;
+    }
+
+    private void setting(String title, String detail, String description, Runnable click) {
+        LinearLayout copy = ui.column();
+        copy.addView(ui.text(title, Ui.Type.ROW));
+        if (!detail.isEmpty()) {
+            ui.space(copy, 4);
+            copy.addView(ui.text(detail, Ui.Type.SUPPORT));
+        }
+        rows.addView(directoryRow(copy, description, click));
+        ui.rule(rows, 0);
     }
 
     private LinearLayout directoryRow(View text, String description, Runnable click) {
@@ -345,12 +338,14 @@ public final class ToolsActivity extends Activity {
         switch(id) {
             case "diagnostics": actions.diagnostics(); return;
             case "about": actions.about(); return;
+            case "workspace": actions.workspace(); return;
             case "agents": case "sessions":
                 if(!AppNavigation.remote(this)) {
                     new AlertDialog.Builder(this, ui.dialogTheme)
                         .setTitle(title)
-                        .setMessage("此功能运行在电脑或服务器上。请在工作空间中连接远程 Magpie 后再打开。")
-                        .setPositiveButton("知道了", null)
+                        .setMessage("此功能运行在电脑或服务器上的 Magpie 中。")
+                        .setNegativeButton("取消", null)
+                        .setPositiveButton("连接远程工作区", (dialog, button) -> actions.remote())
                         .show();
                     return;
                 }
@@ -359,17 +354,25 @@ public final class ToolsActivity extends Activity {
             case "network": openAdvanced("settings", title, "network"); return;
             case "backup": openAdvanced("settings", title, "sync"); return;
             case "settings": openAdvanced("settings", title, "general"); return;
+            case "usagePreferences": openAdvanced("settings", title, "usage"); return;
         }
         openAdvanced(id, title, null);
     }
 
     private void openAdvanced(String view, String title, String tab) {
         if(!AppNavigation.ready(this)) {
-            new AlertDialog.Builder(this, ui.dialogTheme)
+            AlertDialog.Builder dialog = new AlertDialog.Builder(this, ui.dialogTheme)
                 .setTitle(title)
-                .setMessage("请先启动本机网关，或连接远程工作空间。")
-                .setPositiveButton("知道了", null)
-                .show();
+                .setMessage("连接本机或远程工作区后可打开此项设置。")
+                .setNegativeButton("取消", null);
+            if (GatewayService.state.startsWith("正在启动")) {
+                dialog.setMessage("本机网关正在启动，启动完成后即可打开此项设置。")
+                        .setPositiveButton("连接远程工作区", (choice, button) -> actions.remote());
+            } else {
+                dialog.setNeutralButton("连接远程工作区", (choice, button) -> actions.remote())
+                        .setPositiveButton("启动本机网关", (choice, button) -> actions.start());
+            }
+            dialog.show();
             return;
         }
         Intent target = AppNavigation.detailIntent(this, view)

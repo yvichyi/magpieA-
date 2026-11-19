@@ -22,6 +22,7 @@ import org.json.JSONObject;
 
 /** The complete connection task, with explicit test dispatch and workspace-scoped results. */
 final class ConnectScreen implements AppScreen {
+    static final int SETUP_FOR_CONNECTION = 18;
     private static final String[] PROTOCOLS = {"OpenAI", "Anthropic", "Gemini"};
     private final ScreenHost host;
     private final Activity activity;
@@ -38,6 +39,7 @@ final class ConnectScreen implements AppScreen {
     private int generation;
     private int protocol;
     private String reference;
+    private String pendingProvider = "";
     private String result = "";
     private boolean successfulTest;
 
@@ -46,7 +48,7 @@ final class ConnectScreen implements AppScreen {
     private final Runnable tick = new Runnable() {
         @Override public void run() {
             if (!active) return;
-            updateStatus();
+            if (updateStatus()) render();
             if (catalog == null && !readFailed) load();
             main.postDelayed(this, 1000);
         }
@@ -112,7 +114,7 @@ final class ConnectScreen implements AppScreen {
     @Override public void onResume() {
         active = true;
         readFailed = false;
-        updateStatus();
+        if (updateStatus()) render();
         load();
         main.removeCallbacks(tick);
         main.postDelayed(tick, 1000);
@@ -135,15 +137,22 @@ final class ConnectScreen implements AppScreen {
         scroll.scrollTo(0, 0);
     }
 
+    void focusProvider(String providerId) {
+        pendingProvider = providerId == null ? "" : providerId;
+        scroll.scrollTo(0, 0);
+    }
+
     private String preferenceKey(String name) { return name + ":" + AppNavigation.workspace(activity); }
 
-    private void updateStatus() {
+    private boolean updateStatus() {
         String label;
         if (AppNavigation.remote(activity)) label = catalog != null && !readFailed
                 ? "远程工作空间 · 管理端已连接" : "远程工作空间";
         else if (catalog != null && Boolean.FALSE.equals(catalog.snapshot.gatewayRunning)) label = "本机管理端已就绪 · 网关未运行";
         else label = "本机网关 · " + GatewayService.state;
-        if (!label.contentEquals(status.getText())) status.setText(label);
+        if (label.contentEquals(status.getText())) return false;
+        status.setText(label);
+        return true;
     }
 
     private void load() {
@@ -170,10 +179,20 @@ final class ConnectScreen implements AppScreen {
         if (data != null) {
             catalog = data;
             loadedScope = scope;
-            if (reference.isEmpty()) {
+            if (reference.isEmpty() || !pendingProvider.isEmpty()) {
                 List<Target> targets = choices(data);
-                if (!targets.isEmpty()) {
-                    reference = targets.get(0).reference;
+                Target selection = null;
+                for (Target target : targets) {
+                    if (pendingProvider.isEmpty() || target.reference.startsWith(pendingProvider + "/")) {
+                        selection = target;
+                        break;
+                    }
+                }
+                pendingProvider = "";
+                if (selection != null && !selection.reference.equals(reference)) {
+                    reference = selection.reference;
+                    result = "";
+                    successfulTest = false;
                     preferences.edit().putString(preferenceKey("target"), reference).apply();
                 }
             }
@@ -186,13 +205,17 @@ final class ConnectScreen implements AppScreen {
         configuration.removeAllViews();
         boolean remote = AppNavigation.remote(activity);
         if (!AppNavigation.ready(activity)) {
-            configuration.addView(ui.text("启动本机网关", 20, ui.ink, true));
+            configuration.addView(ui.text("选择工作区", Ui.Type.SECTION));
             ui.space(configuration, 8);
-            configuration.addView(ui.text("启动后即可选择模型，复制配置并测试调用。", 15, ui.muted, false));
+            configuration.addView(ui.text("可以使用这台手机运行 Magpie，也可以连接电脑或服务器上的 Magpie。", Ui.Type.BODY));
             ui.space(configuration, 16);
-            Button start = ui.button("启动网关", true, () -> new HostActions(activity, ui, host::refresh).start());
-            start.setEnabled(!GatewayService.state.startsWith("正在启动"));
+            HostActions actions = new HostActions(activity, ui, host::refresh);
+            boolean starting = GatewayService.state.startsWith("正在启动");
+            Button start = ui.button(starting ? "正在启动…" : "启动网关", true, actions::start);
+            start.setEnabled(!starting);
             configuration.addView(start);
+            ui.space(configuration, 8);
+            configuration.addView(ui.button("连接远程工作区", false, actions::remote));
             return;
         }
         if (catalog == null) {
@@ -201,7 +224,8 @@ final class ConnectScreen implements AppScreen {
                 ui.space(configuration, 8);
                 configuration.addView(ui.text("检查网关状态或工作空间的管理地址和密钥。", 15, ui.muted, false));
                 ui.space(configuration, 12);
-                configuration.addView(ui.button("重新读取", true, this::load));
+                configuration.addView(new AdaptivePair(ui, ui.button("重新读取", true, this::load),
+                        ui.button("更改工作区", false, host::openWorkspace), 8));
             }
             return;
         }
@@ -215,7 +239,8 @@ final class ConnectScreen implements AppScreen {
             configuration.addView(ui.text("添加模型来源并启用模型，即可生成接入配置。", 15, ui.muted, false));
             ui.space(configuration, 16);
             configuration.addView(ui.button("添加服务商", true, this::addProvider));
-            configuration.addView(ui.button("查看已有模型", false, () -> host.openRoot("home")));
+            ui.space(configuration, 8);
+            configuration.addView(ui.button("管理模型与分组", false, () -> host.openRoot("home")));
             return;
         }
 
@@ -347,7 +372,8 @@ final class ConnectScreen implements AppScreen {
 
     private void addProvider() {
         UiMotion.result(activity, new Intent(activity, ProviderSetupActivity.class)
-                .putExtra("remote", AppNavigation.remote(activity)), CatalogScreen.SETUP_PROVIDER);
+                .putExtra("remote", AppNavigation.remote(activity))
+                .putExtra("returnToConnection", true), SETUP_FOR_CONNECTION);
     }
 
     static final class Target {
