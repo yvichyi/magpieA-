@@ -7,12 +7,12 @@
     {
       "filename": "Magpie-Android-2.0.0-preview5-arm64.apk",
       "bytes": 92251780,
-      "sha256": "4e91d129df6ff4b44df2e0aff035420c14b777f3471bba81618aa88c190265dd"
+      "sha256": "40d7ca7ce4e773beacf02e8aa12ae4638e50d4b5d7f36f6f600367b6d6304cf1"
     },
     {
       "filename": "Magpie-Android-2.0.0-preview5-x86_64.apk",
       "bytes": 96134782,
-      "sha256": "ffacc9123cf9792e7d9b325e95f7ca89bc54fae0661ab164447efb2ccab7616d"
+      "sha256": "1b193407ed159f4032f505e6dfc9ba18fc1a8649500946bfdd85def8d6df2dd3"
     }
   ]
 }
