@@ -12,7 +12,6 @@ final class LedgerScreen {
     static void render(ScreenHost host, LinearLayout target, InsightsScope scope, LedgerQuery query,
                        LedgerSnapshot page, boolean busy, LongConsumer setOffset) {
         Ui ui = host.ui();
-        target.addView(InsightsViews.title(ui, "请求记录", 24));
         ui.space(target, 6);
         if (page.total == 0) {
             target.addView(InsightsViews.note(ui, "当前筛选没有匹配的请求。"));
@@ -43,7 +42,7 @@ final class LedgerScreen {
             entry.setBackground(ui.ripple(android.graphics.Color.TRANSPARENT, 12));
             String model = request.model.isEmpty() ? "未记录模型" : request.model;
             String time = request.time.atZoneSameInstant(zone).format(formatter);
-            entry.addView(ui.text(model, 16, ui.ink, true));
+            entry.addView(ui.text(model, Ui.Type.ROW));
             ui.space(entry, 4);
             String context = request.providerName.isEmpty() ? request.agentName : request.providerName;
             entry.addView(InsightsViews.note(ui, context.isEmpty() ? time : time + " · " + context));

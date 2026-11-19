@@ -297,13 +297,13 @@ public final class MainActivity extends Activity implements ScreenHost {
             header.addView(bird, new LinearLayout.LayoutParams(ui.dp(24), ui.dp(24)));
             ui.gap(header, 10);
         }
-        TextView title = ui.text(root.detail() ? root.page().title : "Magpie", 20, ui.ink, true);
+        TextView title = ui.text(root.detail() ? root.page().title : "Magpie", Ui.Type.SECTION);
         if (root.detail()) {
             title.setMaxLines(2);
         } else {
             title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20);
             title.setSingleLine(true);
-            if (ui.swiss()) title.setTypeface(ui.font(true, 700));
+            title.setTypeface(ui.font(true, ui.swiss() ? 700 : 650));
         }
         title.setEllipsize(TextUtils.TruncateAt.END);
         ui.grow(header, title);

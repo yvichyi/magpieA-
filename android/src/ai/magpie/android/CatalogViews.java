@@ -30,32 +30,51 @@ final class CatalogViews {
     }
 
     static View row(Ui ui, String title, String description, Runnable open) {
+        return row(ui, title, "", description, open);
+    }
+
+    static View row(Ui ui, String title, String reference, String description, Runnable open) {
         LinearLayout row = ui.row();
         row.setMinimumHeight(ui.dp(56));
-        row.setPadding(ui.dp(4), ui.dp(12), ui.dp(4), ui.dp(12));
+        row.setPadding(0, ui.dp(13), ui.dp(2), ui.dp(13));
         LinearLayout text = ui.column();
-        text.addView(ui.text(title, 16, ui.ink, true));
-        if (!description.isEmpty()) {
+        TextView name = ui.text(title, Ui.Type.ROW);
+        if (open != null) limit(name, 2);
+        text.addView(name);
+        if (!reference.isEmpty()) {
             ui.space(text, 3);
-            text.addView(ui.text(description, 14, ui.muted, false));
+            TextView identifier = ui.text(reference, Ui.Type.IDENTIFIER);
+            identifier.setTextColor(ui.muted);
+            if (open != null) limit(identifier, 1);
+            text.addView(identifier);
+        }
+        if (!description.isEmpty()) {
+            ui.space(text, 4);
+            text.addView(ui.text(description, Ui.Type.SUPPORT));
         }
         ui.grow(row, text);
         if (open != null) {
-            ui.gap(row, 12);
+            ui.gap(row, 8);
             View chevron = new LineIcon(ui.a, "chevron", ui.muted);
             chevron.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             row.addView(chevron, new LinearLayout.LayoutParams(ui.dp(16), ui.dp(16)));
             row.setBackground(ui.ripple(Color.TRANSPARENT, 8));
             row.setFocusable(true);
             row.setOnClickListener(v -> open.run());
-            row.setContentDescription(description.isEmpty() ? title : title + "，" + description);
+            row.setContentDescription(title + (reference.isEmpty() ? "" : "，" + reference)
+                    + (description.isEmpty() ? "" : "，" + description));
             text.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
         }
         return row;
     }
 
+    private static void limit(TextView view, int lines) {
+        view.setMaxLines(lines);
+        view.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    }
+
     static TextView action(Ui ui, String label, Runnable action) {
-        TextView button = ui.text(label, 15, ui.ink, true);
+        TextView button = ui.text(label, Ui.Type.ACTION);
         button.setGravity(Gravity.CENTER);
         button.setMinHeight(ui.dp(48));
         button.setPadding(ui.dp(8), ui.dp(6), ui.dp(8), ui.dp(6));

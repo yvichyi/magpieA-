@@ -63,7 +63,7 @@ public final class NativePreviewAcceptance extends Instrumentation {
             });
             home = (MainActivity) startActivitySync(new Intent(target, MainActivity.class)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
-            if (!mode.equals("glass") && !mode.equals("themes")) {
+            if (!mode.equals("glass") && !mode.equals("themes") && !mode.startsWith("typography")) {
                 if (!GatewayService.ready) click("启动网关");
                 await(() -> GatewayService.ready, 180_000, "Bundled gateway did not start");
             }
@@ -98,6 +98,8 @@ public final class NativePreviewAcceptance extends Instrumentation {
                 testGlassBackdrop();
             } else if (mode.equals("themes")) {
                 testThemeSelection();
+            } else if (mode.startsWith("typography")) {
+                testTypography();
             } else if (mode.equals("stats")) {
                 capture("04-connection");
                 testInsights(true);
@@ -269,6 +271,55 @@ public final class NativePreviewAcceptance extends Instrumentation {
         waitActivity(MainActivity.class);
         awaitText("条匹配记录", 30_000);
         stage("SETTINGS_RETURN_PRESERVES_REQUEST_LIST");
+    }
+
+    private void testTypography() throws Exception {
+        waitActivity(MainActivity.class);
+        ui(() -> {
+            Ui ui = home.ui();
+            boolean compact = mode.equals("typography-small");
+            if (compact) {
+                android.content.res.Configuration config = home.getResources().getConfiguration();
+                require(config.fontScale >= 1.99f && config.screenWidthDp <= 320,
+                        "Compact acceptance needs 320 dp and 200 percent font scaling");
+            }
+            int width = ui.dp(compact ? 280 : 354);
+            int exact = View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY);
+            int unbounded = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED);
+            String title = "多语言模型与长上下文 Multilingual Reasoning and Vision";
+            String id = "preview-provider/reasoning-model-with-a-long-version-id-2026-11-18";
+            View row = CatalogViews.row(ui, title, id, "模型已启用", () -> {});
+            row.measure(exact, unbounded);
+            row.layout(0, 0, width, row.getMeasuredHeight());
+            ViewGroup levels = (ViewGroup) ((ViewGroup) row).getChildAt(0);
+            TextView name = (TextView) levels.getChildAt(0);
+            TextView reference = (TextView) levels.getChildAt(2);
+            require(name.getLineCount() <= 2 && reference.getLineCount() == 1, "Directory row line limits");
+            require(row.getContentDescription().toString().contains(id), "Full model identifier must stay available to accessibility");
+
+            TextView count = ui.text(compact ? "123,456,789,012" : "128,560", Ui.Type.METRIC);
+            TextView calls = ui.text("2,032", Ui.Type.METRIC);
+            AdaptivePair metrics = new AdaptivePair(ui, count, calls, 14, true);
+            metrics.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+            metrics.measure(exact, unbounded);
+            metrics.layout(0, 0, width, metrics.getMeasuredHeight());
+            require(metrics.getOrientation() == (compact ? android.widget.LinearLayout.VERTICAL : android.widget.LinearLayout.HORIZONTAL),
+                    "Metric layout must keep a separate column when the two values cannot fit");
+            require((compact ? calls.getTop() - count.getBottom() : calls.getLeft() - count.getRight()) >= ui.dp(14),
+                    "Measured metrics must leave room between their text regions");
+            require(count.getRight() <= width && calls.getRight() <= width, "Metrics extend past the content width");
+        });
+        capture("01-connection");
+        click("模型");
+        capture("02-models");
+        click("插件");
+        capture("03-plugins");
+        click("用量");
+        capture("04-usage");
+        click("打开设置");
+        waitActivity(ToolsActivity.class);
+        capture("05-settings");
+        stage("DIRECTORY_AND_METRICS_FIT_" + mode);
     }
 
     private void testThemeSelection() throws Exception {

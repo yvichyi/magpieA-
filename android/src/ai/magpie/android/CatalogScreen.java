@@ -346,7 +346,7 @@ final class CatalogScreen implements AppScreen {
                 found = groups.size();
                 for (int i = 0; i < Math.min(limit, found); i++) {
                     CatalogData.Group group = groups.get(i);
-                    addRow(group.group.name, group.group.reference + "\n" + group.strategy() + " · "
+                    addRow(group.group.name, group.group.reference, group.strategy() + " · "
                             + group.status(), () -> openGroup(group, scope));
                 }
                 break;
@@ -356,7 +356,7 @@ final class CatalogScreen implements AppScreen {
                 found = providers.size();
                 for (int i = 0; i < Math.min(limit, found); i++) {
                     CatalogData.Provider provider = providers.get(i);
-                    addRow(provider.provider.name, provider.provider.id + "\n" + provider.status()
+                    addRow(provider.provider.name, provider.provider.id, provider.status()
                             + " · " + provider.provider.models.size() + " 个模型", () -> openProvider(provider, scope));
                 }
                 break;
@@ -369,7 +369,7 @@ final class CatalogScreen implements AppScreen {
                     CatalogData.Model model = models.get(i);
                     String note = model.status();
                     if (favorites.contains(model.model.reference)) note += " · 已收藏";
-                    addRow(model.model.name, model.model.reference + "\n" + note, () -> openModel(model, scope));
+                    addRow(model.model.name, model.model.reference, note, () -> openModel(model, scope));
                 }
                 break;
             }
@@ -400,16 +400,16 @@ final class CatalogScreen implements AppScreen {
 
     private void empty(String title, String note) {
         ui.space(results, 24);
-        results.addView(ui.text(title, 20, ui.ink, true));
+        results.addView(ui.text(title, Ui.Type.SECTION));
         if (!note.isEmpty()) {
             ui.space(results, 8);
-            results.addView(ui.text(note, 15, ui.muted, false));
+            results.addView(ui.text(note, Ui.Type.SUPPORT));
         }
         ui.space(results, 12);
     }
 
-    private void addRow(String title, String note, Runnable open) {
-        results.addView(CatalogViews.row(ui, title, note, open));
+    private void addRow(String title, String reference, String note, Runnable open) {
+        results.addView(CatalogViews.row(ui, title, reference, note, open));
         ui.rule(results, 0);
     }
 

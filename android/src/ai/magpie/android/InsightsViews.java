@@ -21,19 +21,17 @@ final class InsightsViews {
     }
 
     static TextView title(Ui ui, String title, int size) {
-        TextView text = ui.text(title, size, ui.ink, true);
+        TextView text = ui.text(title, size >= 24 ? Ui.Type.PAGE : size >= 18 ? Ui.Type.SECTION : Ui.Type.ROW);
         text.setAccessibilityHeading(true);
         return text;
     }
 
     static TextView note(Ui ui, String text) {
-        TextView view = ui.text(text, 15, ui.muted, false);
-        view.setLineSpacing(ui.dp(3), 1);
-        return view;
+        return ui.text(text, Ui.Type.SUPPORT);
     }
 
     static TextView action(Ui ui, String label, Runnable click) {
-        TextView text = ui.text(label, 15, ui.ink, true);
+        TextView text = ui.text(label, Ui.Type.ACTION);
         text.setGravity(Gravity.CENTER_VERTICAL);
         text.setMinimumHeight(ui.dp(48));
         text.setBackground(ui.ripple(android.graphics.Color.TRANSPARENT, 12));
@@ -42,19 +40,16 @@ final class InsightsViews {
     }
 
     static void pair(Ui ui, LinearLayout root, View first, View second) {
-        LinearLayout pair = ui.row();
-        ui.grow(pair, first);
-        ui.gap(pair, 8);
-        ui.grow(pair, second);
-        root.addView(pair);
+        root.addView(new AdaptivePair(ui, first, second, 14, true));
     }
 
     static void field(Ui ui, LinearLayout layout, String label, String value) {
         if (value.isEmpty()) return;
         LinearLayout field = ui.column();
         field.setPadding(0, ui.dp(9), 0, ui.dp(9));
-        field.addView(note(ui, label));
-        TextView text = ui.text(value, 16, ui.ink, false);
+        field.addView(ui.text(label, Ui.Type.LABEL));
+        ui.space(field, 4);
+        TextView text = ui.text(value, Ui.Type.BODY);
         text.setTextIsSelectable(true);
         field.addView(text);
         layout.addView(field);

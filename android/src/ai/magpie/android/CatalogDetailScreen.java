@@ -68,18 +68,16 @@ final class CatalogDetailScreen implements AppScreen {
     }
 
     private void heading(String title, String state) {
-        TextView name = ui.text(title, 28, ui.ink, true);
-        name.setAccessibilityHeading(true);
+        TextView name = ui.text(title, Ui.Type.PAGE);
         body.addView(name);
         ui.space(body, 8);
-        body.addView(ui.text(state, 14, ui.muted, false));
+        body.addView(ui.text(state, Ui.Type.SUPPORT));
         ui.space(body, 18);
     }
 
     private void section(String title) {
         ui.space(body, 22);
-        TextView name = ui.text(title, 18, ui.ink, true);
-        name.setAccessibilityHeading(true);
+        TextView name = ui.text(title, Ui.Type.SECTION);
         body.addView(name);
         ui.space(body, 6);
         ui.rule(body, 0);
@@ -92,13 +90,16 @@ final class CatalogDetailScreen implements AppScreen {
 
     private boolean valid() { return owner.repository.current(scope, true) && !displayedFailed; }
 
-    private void reference(String value) {
+    private void reference(String value) { reference("接入标识", value); }
+
+    private void reference(String label, String value) {
+        body.addView(ui.text(label, Ui.Type.LABEL));
         LinearLayout row = ui.row();
-        TextView text = ui.text(value, 15, ui.ink, false);
+        TextView text = ui.text(value, Ui.Type.IDENTIFIER);
         text.setTextIsSelectable(true);
         ui.grow(row, text);
-        row.addView(ui.copyButton("复制接入标识", () -> {
-            if (owner.repository.current(scope, false)) CatalogViews.copy(ui, "接入标识", value);
+        row.addView(ui.copyButton("复制" + label, () -> {
+            if (owner.repository.current(scope, false)) CatalogViews.copy(ui, label, value);
         }));
         body.addView(row);
         ui.space(body, 12);
@@ -140,6 +141,7 @@ final class CatalogDetailScreen implements AppScreen {
         if (selected == null) return false;
         WorkspaceSnapshot.Provider source = selected.provider;
         heading(source.name, selected.status());
+        reference("服务商标识", source.id);
         body.addView(ui.button("编辑服务商", true, () -> {
             if (valid()) host.advanced("providers", "providerId", source.id);
         }));
@@ -148,7 +150,10 @@ final class CatalogDetailScreen implements AppScreen {
         for (int i = 0; i < Math.min(limit, source.models.size()); i++) {
             WorkspaceSnapshot.Model model = source.models.get(i);
             CatalogData.Model entry = displayed.model(model.reference);
-            if (entry != null) row(model.name, model.reference + "\n" + entry.status(), () -> owner.openModel(entry, scope));
+            if (entry != null) {
+                body.addView(CatalogViews.row(ui, model.name, model.reference, entry.status(), () -> owner.openModel(entry, scope)));
+                ui.rule(body, 0);
+            }
         }
         more(source.models.size());
         return true;

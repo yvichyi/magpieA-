@@ -19,7 +19,7 @@ from uuid import uuid4
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--mode', choices=['flow', 'stats', 'small', 'glass', 'themes'], default='flow')
+parser.add_argument('--mode', choices=['flow', 'stats', 'small', 'glass', 'themes', 'typography', 'typography-small'], default='flow')
 parser.add_argument('--evidence', type=Path, required=True)
 args = parser.parse_args()
 ADB = os.environ.get('ADB', '/workspace/toolchains/android-sdk/platform-tools/adb')
@@ -167,7 +167,7 @@ try:
                 if time.monotonic() >= deadline:
                     raise RuntimeError('Could not configure the disposable plugin registry') from None
                 time.sleep(2)
-    if args.mode == 'small':
+    if args.mode in ('small', 'typography-small'):
         adb('shell', 'wm', 'size', '320x568')
         adb('shell', 'settings', 'put', 'system', 'font_scale', '2.0')
     adb('shell', 'input', 'keyevent', 'KEYCODE_WAKEUP')
@@ -195,7 +195,7 @@ finally:
                     (args.evidence / Path(item.name).name).write_bytes(archive.extractfile(item).read())
     except (subprocess.SubprocessError, OSError, tarfile.TarError):
         pass
-    if args.mode == 'small':
+    if args.mode in ('small', 'typography-small'):
         adb('shell', 'wm', 'size', old_override.group(1) if old_override else 'reset')
         if old_font == 'null':
             adb('shell', 'settings', 'delete', 'system', 'font_scale')

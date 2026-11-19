@@ -79,12 +79,11 @@ final class ConnectScreen implements AppScreen {
         scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
 
         LinearLayout heading = ui.row();
-        TextView title = ui.text("接入", 30, ui.ink, true);
-        title.setAccessibilityHeading(true);
+        TextView title = ui.text("接入", Ui.Type.PAGE);
         ui.grow(heading, title);
         heading.addView(ui.iconButton("network", "网关与访问权限", () -> host.advanced("gateway")));
         body.addView(heading);
-        status = ui.text("", 14, ui.muted, false);
+        status = ui.text("", Ui.Type.SUPPORT);
         status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         body.addView(status);
         ui.space(body, 20);
@@ -288,11 +287,12 @@ final class ConnectScreen implements AppScreen {
 
     private void field(String label, String value, String action, Runnable click) {
         LinearLayout row = ui.row(), info = ui.column();
-        row.setPadding(0, ui.dp(6), 0, ui.dp(6));
-        info.addView(ui.text(label, 12, ui.muted, false));
-        ui.space(info, 3);
-        info.addView(ui.text(value, 15, ui.ink, false));
+        row.setPadding(0, ui.dp(8), 0, ui.dp(8));
+        info.addView(ui.text(label, Ui.Type.LABEL));
+        ui.space(info, 4);
+        info.addView(ui.text(value, Ui.Type.IDENTIFIER));
         ui.grow(row, info);
+        ui.gap(row, 6);
         row.addView(action.startsWith("复制") ? ui.copyButton(action, click) : ui.iconButton("chevron", action, click));
         configuration.addView(row);
         ui.rule(configuration, 0);

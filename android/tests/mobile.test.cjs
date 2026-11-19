@@ -237,6 +237,20 @@ test('Swiss appearance uses paper tones and square controls in the embedded sett
  assert.equal((await style()).radius,'17px');
 });
 
+test('Android settings reserve reading space inside fields at narrow widths',async t=>{
+ const b=await chromium.launch(options);t.after(()=>b.close());const p=await b.newPage({viewport:{width:320,height:568}});
+ await p.setContent('<body class="web"><main class="view" id="view-settings"><h1>设置</h1><div class="set-head"><input type="search" id="setQ" placeholder="搜索设置"></div><input type="range" id="effortRange"></main></body>');
+ await p.addStyleTag({path:path.join(coreRoot,'internal/gui/assets/app.css')});
+ await p.addStyleTag({content:mobileCss});await p.addScriptTag({content:adapter});
+ for (const theme of ['glass','swiss']) {
+  await p.evaluate(theme=>magpieAndroidVisualOptions(false,true,theme,false),theme);
+  const field=await p.locator('#setQ').evaluate(e=>({padding:parseFloat(getComputedStyle(e).paddingInlineStart),right:e.getBoundingClientRect().right}));
+  assert.ok(field.padding>=12,'Input text touches the outline');
+  assert.ok(field.right<=320,'Padded field extends beyond the viewport');
+  assert.equal(await p.locator('#effortRange').evaluate(e=>getComputedStyle(e).paddingInlineStart),'0px','Slider padding should align with its ticks');
+ }
+});
+
 test('Android settings keeps the real tabs and search reachable in a narrow viewport',async t=>{
  const b=await chromium.launch(options);t.after(()=>b.close());const p=await b.newPage({viewport:{width:320,height:568}});
  await p.setContent('<body class="window web side-nav"><main id="view-settings" class="view"><div class="row-head set-head"><div id="setTabs" class="warm-tabs set-tabs"><button type="button" role="tab" data-set="general" aria-selected="true">General</button><button type="button" role="tab" data-set="network">Network and sharing</button><button type="button" role="tab" data-set="sync">Sync and backup</button></div><input class="sess-filter set-q" id="setQ" aria-label="Find a setting" type="search"></div><section class="set-page"><div class="list prefs"><div class="row pref"><div class="who"><div class="name">Setting name</div></div></div></div></section></main></body>');

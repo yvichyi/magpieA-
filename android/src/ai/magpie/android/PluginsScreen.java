@@ -120,8 +120,7 @@ final class PluginsScreen implements AppScreen {
         scroll.addView(body);
 
         LinearLayout heading = ui.row();
-        TextView title = ui.text("插件", 28, ui.ink, true);
-        title.setAccessibilityHeading(true);
+        TextView title = ui.text("插件", Ui.Type.PAGE);
         ui.grow(heading, title);
         View refresh = ui.iconButton("refresh", "刷新插件", () -> refresh(true));
         heading.addView(refresh, new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
@@ -731,23 +730,23 @@ final class PluginsScreen implements AppScreen {
         row.setPadding(0, ui.dp(12), 0, ui.dp(12));
         row.setMinimumHeight(ui.dp(56));
         row.setBackground(ui.ripple(Color.TRANSPARENT, 12));
-        row.addView(ui.iconTile(icon, 38));
-        ui.gap(row, 10);
+        row.addView(ui.iconTile(icon, 34));
+        ui.gap(row, 9);
         LinearLayout labels = ui.column();
-        TextView name = ui.text(title, 16, ui.ink, true);
+        TextView name = ui.text(title, Ui.Type.ROW);
         name.setMaxLines(3);
         name.setEllipsize(TextUtils.TruncateAt.END);
         labels.addView(name);
         if (!subtitle.isEmpty()) {
             ui.space(labels, 4);
-            TextView sub = ui.text(subtitle, 15, ui.muted, false);
+            TextView sub = ui.text(subtitle, Ui.Type.SUPPORT);
             sub.setMaxLines(2);
             sub.setEllipsize(TextUtils.TruncateAt.END);
             labels.addView(sub);
         }
         if (!detail.isEmpty()) {
             ui.space(labels, 4);
-            labels.addView(ui.text(detail, 14, ui.muted, false));
+            labels.addView(ui.text(detail, Ui.Type.SUPPORT));
         }
         ui.grow(row, labels);
         ui.gap(row, 8);

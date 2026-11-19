@@ -64,7 +64,7 @@ public final class ToolsActivity extends Activity {
 
         LinearLayout root = ui.column();
         root.setBackgroundColor(ui.bg);
-        root.addView(header(ui, ui.text("设置", 20, ui.ink, false),
+        root.addView(header(ui, ui.text("设置", Ui.Type.SECTION),
             "返回" + NavigationModel.title(parentRoot), this::onBackPressed));
         ui.rule(root, 0);
         LinearLayout content = ui.column();
@@ -120,7 +120,7 @@ public final class ToolsActivity extends Activity {
         back.setLayoutParams(new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
         header.addView(back);
         ui.gap(header, 4);
-        heading.setTypeface(ui.font(false, ui.swiss() ? 700 : 500));
+        heading.setTypeface(ui.font(false, ui.swiss() ? 700 : 650));
         heading.setAccessibilityHeading(true);
         ui.grow(header, heading);
         return header;
@@ -237,8 +237,9 @@ public final class ToolsActivity extends Activity {
         if (!matches(query, "外观", "界面主题 液态玻璃 瑞士风格")) return 0;
         heading("外观");
         LinearLayout label = ui.column();
-        label.addView(ui.text("界面主题", 16, ui.ink, true));
-        label.addView(ui.text(ui.appearance.label, 14, ui.muted, false));
+        label.addView(ui.text("界面主题", Ui.Type.ROW));
+        ui.space(label, 4);
+        label.addView(ui.text(ui.appearance.label, Ui.Type.SUPPORT));
         rows.addView(directoryRow(label, "选择界面主题", this::chooseAppearance));
         return 1;
     }
@@ -274,7 +275,7 @@ public final class ToolsActivity extends Activity {
     private void preference(String label, boolean checked, java.util.function.Consumer<Boolean> persist) {
         Switch control = new Switch(this);
         control.setText(label);
-        control.setTextSize(16);
+        ui.typography(control, Ui.Type.ROW);
         control.setTypeface(ui.font(false, 500));
         control.setTextColor(ui.ink);
         control.setGravity(Gravity.CENTER_VERTICAL);
@@ -293,9 +294,8 @@ public final class ToolsActivity extends Activity {
     }
 
     private void heading(String title) {
-        ui.space(rows, 24);
-        TextView label = ui.text(title, 14, ui.muted, true);
-        label.setAccessibilityHeading(true);
+        ui.space(rows, 25);
+        TextView label = ui.text(title, Ui.Type.SECTION);
         rows.addView(label);
         ui.space(rows, 6);
     }
@@ -314,10 +314,10 @@ public final class ToolsActivity extends Activity {
             if(!matches(query, title, item[1] + " " + item[2])) continue;
             if(count++ == 0) heading(title);
             LinearLayout copy = ui.column();
-            copy.addView(ui.text(item[1], 16, ui.ink, true));
+            copy.addView(ui.text(item[1], Ui.Type.ROW));
             if(!item[2].isEmpty()) {
                 ui.space(copy, 4);
-                copy.addView(ui.text(item[2], 14, ui.muted, false));
+                copy.addView(ui.text(item[2], Ui.Type.SUPPORT));
             }
             rows.addView(directoryRow(copy, "打开" + item[1], () -> {
                 if(pluginPage) openAdvanced(item[0], item[1], null);

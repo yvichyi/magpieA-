@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.text.Layout;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
 import android.graphics.drawable.StateListDrawable;
@@ -13,6 +14,21 @@ import android.view.*;
 import android.widget.*;
 
 final class Ui {
+    enum Type {
+        PAGE(30, 700, 1.18f), SECTION(20, 650, 1.22f), ROW(16, 600, 1.28f),
+        BODY(15, 400, 1.36f), SUPPORT(13, 400, 1.42f), LABEL(13, 550, 1.30f),
+        IDENTIFIER(14, 450, 1.31f), METRIC(28, 650, 1.20f), ACTION(15, 600, 1.25f);
+
+        final int size, weight;
+        final float leading;
+
+        Type(int size, int weight, float leading) {
+            this.size = size;
+            this.weight = weight;
+            this.leading = leading;
+        }
+    }
+
     private static final java.util.Map<String,Typeface> fonts=new java.util.HashMap<>();
     final Activity a;
     final int bg, card, ink, muted, line, accent, soft, accentSoft;
@@ -44,10 +60,36 @@ final class Ui {
     TextView text(String s, float size, int color, boolean bold) {
         TextView v = new TextView(a); v.setText(s); v.setTextSize(Math.max(12,size)); v.setTextColor(color);
         v.setIncludeFontPadding(false);
-        v.setLineSpacing(dp(4), 1.04f);
+        v.setLineSpacing(dp(1), 1f);
         v.setTypeface(font(false, bold ? (swiss() && size >= 18 ? 700 : 500) : 400));
         if (swiss() && size >= 24) v.setLetterSpacing(-.02f);
         return v;
+    }
+    TextView text(String content, Type type) {
+        TextView view = new TextView(a);
+        if (type == Type.METRIC && content.indexOf(',') >= 0) {
+            view.setText(content.replace(",", ",\u200b"));
+            view.setContentDescription(content);
+        } else view.setText(content);
+        view.setTextColor(type == Type.LABEL || type == Type.SUPPORT ? muted : ink);
+        typography(view, type);
+        if (type == Type.PAGE || type == Type.SECTION) view.setAccessibilityHeading(true);
+        if (type == Type.IDENTIFIER) view.setTextDirection(View.TEXT_DIRECTION_LTR);
+        return view;
+    }
+
+    void typography(TextView view, Type type) {
+        boolean latin = type == Type.METRIC || type == Type.IDENTIFIER;
+        int weight = type.weight + (swiss() && (type == Type.PAGE || type == Type.METRIC) ? 50 : 0);
+        view.setTypeface(font(latin, weight));
+        view.setTextSize(type.size);
+        view.setIncludeFontPadding(false);
+        view.setBreakStrategy(Layout.BREAK_STRATEGY_SIMPLE);
+        view.setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NONE);
+        int natural = view.getPaint().getFontMetricsInt(null);
+        view.setLineHeight(Math.max(natural, Math.round(view.getTextSize() * type.leading)));
+        if (type == Type.PAGE || type == Type.METRIC) view.setLetterSpacing(-.022f);
+        if (latin) view.setFontFeatureSettings("tnum,lnum");
     }
     Typeface font(boolean numeric,int weight){
         String key=(numeric?"Inter":"NotoSansSC")+weight;
@@ -95,11 +137,11 @@ final class Ui {
     }
     void space(LinearLayout v, int h) { View s = new View(a); v.addView(s, new LinearLayout.LayoutParams(1, dp(h))); }
     Button button(String s, boolean primary, Runnable action) {
-        Button b = new Button(a); b.setText(s); b.setAllCaps(false); b.setTextSize(15);
+        Button b = new Button(a); b.setText(s); b.setAllCaps(false); typography(b, Type.ACTION);
         int[] disabled = {-android.R.attr.state_enabled};
         b.setTextColor(new ColorStateList(new int[][]{disabled, new int[0]},
                 new int[]{muted, primary ? (dark ? bg : Color.WHITE) : ink}));
-        b.setTypeface(font(false, swiss() ? 650 : 500)); b.setMinHeight(dp(48)); b.setMinimumHeight(dp(48));
+        b.setMinHeight(dp(48)); b.setMinimumHeight(dp(48));
         b.setStateListAnimator(null);b.setIncludeFontPadding(false);b.setPadding(dp(14), dp(6), dp(14), dp(6));
         StateListDrawable material = new StateListDrawable();
         material.addState(disabled, shape(soft, 16, false));

@@ -52,6 +52,7 @@ final class InsightsScreen implements AppScreen {
     private final TextView period, filters, status;
     private final View refresh;
     private final TextView[] tabs = new TextView[TABS.length];
+    private final TextView heading;
     private final int[] positions = new int[TABS.length];
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ThreadPoolExecutor reads = new ThreadPoolExecutor(2, 2, 10, TimeUnit.SECONDS,
@@ -109,6 +110,9 @@ final class InsightsScreen implements AppScreen {
         scroll = new InsetScrollView(ui.a);
         scroll.setSaveEnabled(false);
         LinearLayout content = InsightsViews.content(ui, scroll);
+        heading = ui.text("用量概览", Ui.Type.PAGE);
+        content.addView(heading);
+        ui.space(content, 12);
         LinearLayout sections = ui.row();
         for (int i = 0; i < tabs.length; i++) {
             int index = i;
@@ -311,6 +315,12 @@ final class InsightsScreen implements AppScreen {
 
     private void render(int position) {
         int stamp = ++renderGeneration;
+        heading.setText(switch (tab) {
+            case ANALYSIS -> "用量分析";
+            case CALENDAR -> "每日用量";
+            case REQUESTS -> "请求记录";
+            default -> "用量概览";
+        });
         for (int i = 0; i < tabs.length; i++) selected(tabs[i], tab == i);
         boolean calendar = tab == CALENDAR;
         period.setVisibility(calendar ? View.GONE : View.VISIBLE);
@@ -359,14 +369,10 @@ final class InsightsScreen implements AppScreen {
 
     private void renderOverview(LedgerSnapshot data) {
         LedgerSnapshot.Totals totals = data.totals;
-        body.addView(InsightsViews.title(ui, "用量概览", 26));
-        ui.space(body, 14);
         InsightsViews.pair(ui, body, measure("Token 总量", InsightsViews.count(totals.tokens())),
                 measure("调用", InsightsViews.count(totals.calls)));
         ui.space(body, 10);
         body.addView(InsightsViews.note(ui, "费用 · " + InsightsViews.price(totals.cost, totals.unpriced)));
-        body.addView(InsightsViews.note(ui, InsightsViews.count(totals.errors) + " 次最终失败 · "
-                + InsightsViews.count(totals.canceled) + " 次取消"));
         renderTrend(data);
         section("调用健康");
         InsightsViews.pair(ui, body,
@@ -384,12 +390,9 @@ final class InsightsScreen implements AppScreen {
 
     private LinearLayout measure(String name, String value) {
         LinearLayout group = ui.column();
-        group.addView(InsightsViews.note(ui, name));
-        ui.space(group, 4);
-        TextView amount = ui.text(value, 20, ui.ink, true);
-        amount.setTypeface(ui.font(true, 500));
-        amount.setFontFeatureSettings("tnum");
-        group.addView(amount);
+        group.addView(ui.text(value, Ui.Type.METRIC));
+        ui.space(group, 3);
+        group.addView(ui.text(name, Ui.Type.LABEL));
         return group;
     }
 
@@ -461,7 +464,6 @@ final class InsightsScreen implements AppScreen {
 
     private void renderAnalysis(LedgerSnapshot data) {
         LedgerSnapshot.Totals totals = data.totals;
-        body.addView(InsightsViews.title(ui, "用量分析", 26));
         section("Token 构成");
         String[] names = {"输入", "输出", "缓存读取", "缓存写入"};
         long[] values = {totals.input, totals.output, totals.cacheRead, totals.cacheWrite};
@@ -573,7 +575,6 @@ final class InsightsScreen implements AppScreen {
     }
 
     private void renderCalendar(UsageHeatmap heat) {
-        body.addView(InsightsViews.title(ui, "每日用量", 26));
         ui.space(body, 6);
         body.addView(InsightsViews.note(ui, heat.from + " 至 " + heat.to + " · " + scope.zone));
         ui.space(body, 8);
