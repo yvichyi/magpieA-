@@ -1,0 +1,25 @@
+{
+  "device": "Android 13 (API 33), x86_64 software-emulated AOSP ATD, 394x852 at 160 dpi",
+  "flow": "16 alternating native Connect and Models tab clicks after four warm-up clicks per build",
+  "frameMetric": "Android FrameMetrics.TOTAL_DURATION",
+  "installedSHA256": "612a45f52d8256f9e54eb7a57d933756fb4f13dc35d764d6a5c377ab06c49734",
+  "upgradeFromPreview5": true,
+  "frameTimings": {
+    "preview5": {
+      "count": 52,
+      "median_ns": 367261808,
+      "p90_ns": 496173709,
+      "over_16ms": 52,
+      "undelivered_reports": 0
+    },
+    "preview6": {
+      "count": 107,
+      "median_ns": 174366381,
+      "p90_ns": 245293088,
+      "over_16ms": 107,
+      "undelivered_reports": 0
+    }
+  },
+  "checkIn": "Usage and Settings entry points, one authenticated manual write, one per-account preference write, loopback fixture",
+  "glass": "Visible tab travel and settling, reduced motion, both glass surfaces sample live source color"
+}
