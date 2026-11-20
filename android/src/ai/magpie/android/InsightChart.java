@@ -2,6 +2,7 @@ package ai.magpie.android;
 
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.util.TypedValue;
 import android.view.MotionEvent;
 import android.view.View;
 import java.util.List;
@@ -17,6 +18,7 @@ final class InsightChart extends View {
     private final IntConsumer selectPoint;
     private final double maximum;
     private final String[] ticks = new String[4];
+    private float plotLeft, plotTop, plotWidth, plotHeight, labelOffset;
     private int selected;
     private int touched = -1;
 
@@ -32,7 +34,8 @@ final class InsightChart extends View {
         maximum = scaleTop(largest);
         for (int i = 0; i < ticks.length; i++) ticks[i] = axisLabel(maximum * ((3 - i) / 3d));
         paint.setTypeface(ui.font(true, 400));
-        paint.setTextSize(ui.dp(11));
+        paint.setTextSize(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 11,
+                getResources().getDisplayMetrics()));
         setBackground(ui.shape(ui.card, 14, true));
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
         setClickable(!points.isEmpty());
@@ -74,47 +77,54 @@ final class InsightChart extends View {
     }
 
     @Override
+    protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {
+        float labelWidth = 0;
+        for (String label : ticks) labelWidth = Math.max(labelWidth, paint.measureText(label));
+        Paint.FontMetrics font = paint.getFontMetrics();
+        labelOffset = -(font.ascent + font.descent) / 2;
+        plotLeft = (float) Math.ceil(labelWidth) + ui.dp(17);
+        plotTop = Math.max(ui.dp(14), (font.descent - font.ascent) / 2 + ui.dp(6));
+        plotWidth = width - plotLeft - ui.dp(12);
+        plotHeight = height - 2 * plotTop;
+    }
+
+    @Override
     protected void onDraw(Canvas canvas) {
-        float left = ui.dp(metric == 2 ? 57 : 42);
-        float top = ui.dp(14);
-        float width = getWidth() - left - ui.dp(14);
-        float height = getHeight() - top - ui.dp(14);
-        if (width <= 0 || height <= 0) return;
+        if (plotWidth <= 0 || plotHeight <= 0) return;
+        float slot = points.isEmpty() ? 0 : plotWidth / points.size();
+        if (selected >= 0 && selected < points.size()) {
+            paint.setColor(ui.accentSoft);
+            canvas.drawRect(plotLeft + selected * slot, plotTop,
+                    plotLeft + (selected + 1) * slot, plotTop + plotHeight, paint);
+        }
         for (int i = 0; i <= 3; i++) {
-            float y = top + i * height / 3;
+            float y = plotTop + i * plotHeight / 3;
             paint.setColor(ui.line);
             paint.setStrokeWidth(ui.dp(1));
-            canvas.drawLine(left, y, left + width, y, paint);
+            canvas.drawLine(plotLeft, y, plotLeft + plotWidth, y, paint);
             String label = ticks[i];
             paint.setColor(ui.muted);
-            canvas.drawText(label, Math.max(ui.dp(4), left - ui.dp(7) - paint.measureText(label)), y + ui.dp(3), paint);
+            canvas.drawText(label, plotLeft - ui.dp(7) - paint.measureText(label), y + labelOffset, paint);
         }
-        if (points.isEmpty()) return;
-        float slot = width / points.size();
         float maxBarWidth = ui.dp(20);
         float barWidth = Math.min(maxBarWidth, Math.max(slot * .66f, 1));
+        float bottom = plotTop + plotHeight;
         for (int i = 0; i < points.size(); i++) {
             double value = value(points.get(i));
-            float center = left + (i + .5f) * slot;
-            if (i == selected) {
-                paint.setColor(ui.accentSoft);
-                canvas.drawRect(center - slot / 2, top, center + slot / 2, top + height, paint);
-            }
             if (value <= 0) continue;
-            float barHeight = Math.max(ui.dp(2), (float) (height * (value / maximum)));
+            float center = plotLeft + (i + .5f) * slot;
+            float barHeight = Math.max(ui.dp(2), (float) (plotHeight * (value / maximum)));
             paint.setColor(i == selected ? ui.accent : ui.muted);
-            canvas.drawRoundRect(center - barWidth / 2, top + height - barHeight,
-                    center + barWidth / 2, top + height, 2, 2, paint);
+            canvas.drawRoundRect(center - barWidth / 2, bottom - barHeight,
+                    center + barWidth / 2, bottom, ui.dp(2), ui.dp(2), paint);
         }
     }
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        if (points.isEmpty()) return false;
+        if (points.isEmpty() || plotWidth <= 0 || plotHeight <= 0) return false;
         if (event.getActionMasked() == MotionEvent.ACTION_UP) {
-            float left = ui.dp(metric == 2 ? 57 : 42);
-            float width = Math.max(1, getWidth() - left - ui.dp(14));
-            float ratio = (event.getX() - left) / width;
+            float ratio = (event.getX() - plotLeft) / plotWidth;
             touched = Math.max(0, Math.min(points.size() - 1, (int) (ratio * points.size())));
             performClick();
         }

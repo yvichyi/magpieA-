@@ -96,7 +96,10 @@ class Fixture(BaseHTTPRequestHandler):
             Fixture.version = '1.0.2'
             return self.reply({'version': Fixture.version})
         if self.path.startswith('/v1/models'):
-            return self.reply({'object': 'list', 'data': [{'id': 'preview-echo'}, {'id': 'preview-second'}]})
+            models = ['preview-echo', 'preview-second']
+            if args.mode == 'workflow':
+                models.append('preview-vision-reasoning-multilingual-long-context-2026-11')
+            return self.reply({'object': 'list', 'data': [{'id': name} for name in models]})
         if '.tgz' in self.path:
             version = self.path.removesuffix('.tgz').split('-')[-1]
             Fixture.installs.append(version)

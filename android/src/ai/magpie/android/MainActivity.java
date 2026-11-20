@@ -92,7 +92,7 @@ public final class MainActivity extends Activity implements ScreenHost {
         else rootId = initialRoot(intent, firstProvider ? "home" : "connect");
         glass = new GlassFrame(this);
         header = ui.row();
-        header.setMinimumHeight(ui.dp(60));
+        header.setMinimumHeight(ui.dp(56));
         header.setPadding(ui.dp(ui.swiss() ? 20 : 14), ui.dp(4), ui.dp(6), ui.dp(4));
         content = new FrameLayout(this);
         glass.setScene(content);
@@ -374,7 +374,7 @@ public final class MainActivity extends Activity implements ScreenHost {
         if (detail) {
             title.setMaxLines(2);
         } else {
-            title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20);
+            title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 19);
             title.setSingleLine(true);
             title.setTypeface(ui.font(true, ui.swiss() ? 700 : 650));
         }

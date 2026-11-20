@@ -50,12 +50,13 @@ final class CatalogDetailScreen implements AppScreen {
         int y = scroll.getScrollY();
         body.removeAllViews();
         if (load.scopeVersion != scope || displayed == null) {
-            body.addView(ui.text("当前对象暂不可读取", 20, ui.ink, true));
+            body.addView(ui.text("当前对象暂不可读取", Ui.Type.SECTION));
             return;
         }
         if (load.failed) {
-            body.addView(ui.text("更新失败，显示上次读取的内容。", 14, ui.muted, false));
-            body.addView(CatalogViews.action(ui, "重新读取", owner.repository::refresh));
+            body.addView(new AdaptivePair(ui, ui.text("更新失败，显示上次读取的内容。", Ui.Type.SUPPORT),
+                    CatalogViews.action(ui, "重新读取", owner.repository::refresh), 8));
+            ui.space(body, 12);
         }
         boolean present;
         switch (kind) {
@@ -63,28 +64,37 @@ final class CatalogDetailScreen implements AppScreen {
             case GROUP: present = group(displayed.group(id)); break;
             default: present = provider(displayed.provider(id));
         }
-        if (!present) body.addView(ui.text("该对象已从当前工作空间移除", 19, ui.ink, true));
+        if (!present) body.addView(ui.text("该对象已从当前工作空间移除", Ui.Type.SECTION));
         scroll.post(() -> scroll.scrollTo(0, y));
     }
 
     private void heading(String title, String state) {
         TextView name = ui.text(title, Ui.Type.PAGE);
         body.addView(name);
-        ui.space(body, 8);
-        body.addView(ui.text(state, Ui.Type.SUPPORT));
-        ui.space(body, 18);
+        ui.space(body, 5);
+        body.addView(ui.text(state, Ui.Type.LABEL));
+        ui.space(body, 16);
     }
 
     private void section(String title) {
-        ui.space(body, 22);
-        TextView name = ui.text(title, Ui.Type.SECTION);
-        body.addView(name);
-        ui.space(body, 6);
+        section(title, -1);
+    }
+
+    private void section(String title, int count) {
+        ui.space(body, 24);
+        TextView heading = ui.text(title, Ui.Type.SECTION);
+        if (count < 0) body.addView(heading);
+        else body.addView(new AdaptivePair(ui, heading, ui.text(count + " 项", Ui.Type.LABEL), 10));
+        ui.space(body, 8);
         ui.rule(body, 0);
     }
 
     private void row(String title, String note, Runnable action) {
-        body.addView(CatalogViews.row(ui, title, note, action));
+        row(title, "", note, action);
+    }
+
+    private void row(String title, String reference, String note, Runnable action) {
+        body.addView(CatalogViews.fullRow(ui, title, reference, note, action));
         ui.rule(body, 0);
     }
 
@@ -93,24 +103,28 @@ final class CatalogDetailScreen implements AppScreen {
     private void reference(String value) { reference("接入标识", value); }
 
     private void reference(String label, String value) {
-        body.addView(ui.text(label, Ui.Type.LABEL));
         LinearLayout row = ui.row();
+        LinearLayout valueBlock = ui.column();
+        valueBlock.addView(ui.text(label, Ui.Type.LABEL));
+        ui.space(valueBlock, 5);
         TextView text = ui.text(value, Ui.Type.IDENTIFIER);
         text.setTextIsSelectable(true);
-        ui.grow(row, text);
+        valueBlock.addView(text);
+        ui.grow(row, valueBlock);
+        ui.gap(row, 6);
         row.addView(ui.copyButton("复制" + label, () -> {
             if (owner.repository.current(scope, false)) CatalogViews.copy(ui, label, value);
         }));
         body.addView(row);
-        ui.space(body, 12);
+        ui.space(body, 16);
     }
 
-    private void connection(String reference, boolean available) {
+    private Button connection(String reference, boolean available) {
         Button connect = ui.button("使用此目标接入", true, () -> {
             if (valid()) host.connect(reference);
         });
         connect.setEnabled(available && displayedReady && !displayedFailed);
-        body.addView(connect);
+        return connect;
     }
 
     private boolean model(CatalogData.Model selected) {
@@ -119,12 +133,12 @@ final class CatalogDetailScreen implements AppScreen {
         WorkspaceSnapshot.Provider source = selected.source.provider;
         heading(model.name, selected.status());
         reference(model.reference);
-        connection(model.reference, selected.connectable);
-        row(owner.favorite(model.reference) ? "取消收藏" : "收藏模型", "", () -> {
+        TextView favorite = CatalogViews.action(ui, owner.favorite(model.reference) ? "取消收藏" : "收藏模型", () -> {
             owner.toggleFavorite(scope, model.reference);
             refreshNeeded = true;
             update();
         });
+        body.addView(new AdaptivePair(ui, connection(model.reference, selected.connectable), favorite, 10));
         section("模型来源");
         row(source.name, selected.source.status(), () -> {
             if (owner.repository.current(scope, false)) host.openDetail("服务商详情",
@@ -145,14 +159,13 @@ final class CatalogDetailScreen implements AppScreen {
         body.addView(ui.button("编辑服务商", true, () -> {
             if (valid()) host.advanced("providers", "providerId", source.id);
         }));
-        section("模型 · " + source.models.size());
+        section("模型", source.models.size());
         if (source.models.isEmpty()) row("尚未添加模型", "进入服务商配置读取或添加模型。", null);
         for (int i = 0; i < Math.min(limit, source.models.size()); i++) {
             WorkspaceSnapshot.Model model = source.models.get(i);
             CatalogData.Model entry = displayed.model(model.reference);
             if (entry != null) {
-                body.addView(CatalogViews.row(ui, model.name, model.reference, entry.status(), () -> owner.openModel(entry, scope)));
-                ui.rule(body, 0);
+                row(model.name, model.reference, entry.status(), () -> owner.openModel(entry, scope));
             }
         }
         more(source.models.size());
@@ -162,9 +175,12 @@ final class CatalogDetailScreen implements AppScreen {
     private boolean group(CatalogData.Group selected) {
         if (selected == null) return false;
         WorkspaceSnapshot.Group group = selected.group;
-        heading(group.name, selected.strategy() + " · " + selected.status());
+        heading(group.name, selected.status());
+        body.addView(new AdaptivePair(ui, ui.text("路由策略", Ui.Type.LABEL),
+                ui.text(selected.strategy(), Ui.Type.BODY), 10));
+        ui.space(body, 14);
         reference(group.reference);
-        if (!selected.decisive) connection(group.reference, selected.connectable);
+        if (!selected.decisive) body.addView(connection(group.reference, selected.connectable));
         row("编辑分组", "成员、匹配规则与路由策略", () -> {
             if (valid()) host.advanced("groups", "groupId", group.id);
         });
@@ -182,14 +198,15 @@ final class CatalogDetailScreen implements AppScreen {
     }
 
     private void members(String name, List<String> references, CatalogData.Group group) {
-        section(name + " · " + references.size());
+        section(name, references.size());
         if (references.isEmpty()) row("暂无成员", "", null);
         for (int i = 0; i < Math.min(limit, references.size()); i++) {
             String reference = references.get(i);
             CatalogData.Model model = displayed.model(reference);
             String status = group.off.contains(reference) ? "已从此分组停用"
                     : Boolean.FALSE.equals(group.memberReady.get(reference)) ? "当前不可路由" : "";
-            row(reference, status, model == null ? null : () -> owner.openModel(model, scope));
+            if (model == null) row(reference, status, null);
+            else row(model.model.name, reference, status, () -> owner.openModel(model, scope));
         }
     }
 

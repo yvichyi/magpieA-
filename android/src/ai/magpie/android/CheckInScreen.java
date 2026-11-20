@@ -4,6 +4,7 @@ import android.app.AlertDialog;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
+import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Switch;
@@ -146,24 +147,17 @@ final class CheckInScreen implements AppScreen {
 
         String status = writing ? total > 0 ? "正在签到 " + received + "/" + total : "正在保存自动签到设置…"
                 : loading ? "正在读取签到账号…" : !error.isEmpty() ? error : notice;
-        if (!status.isEmpty()) {
-            TextView state = ui.text(status, Ui.Type.SUPPORT);
-            state.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-            body.addView(state);
-            ui.space(body, 10);
-        }
         if (directory == null) {
+            showStatus(status);
             if (!loading) {
                 addButton("重新读取", true, this::refresh);
                 addButton("更改工作区", false, host::openWorkspace);
             }
             return;
         }
-        if (!warning.isEmpty()) {
-            body.addView(ui.text(warning, Ui.Type.SUPPORT));
-            ui.space(body, 8);
-        }
         if (directory.vendors().isEmpty()) {
+            showStatus(status);
+            showStatus(warning);
             body.addView(ui.text("暂无可签到的账号", Ui.Type.SECTION));
             ui.space(body, 6);
             body.addView(ui.text("登录支持签到的订阅服务商后，账号会显示在这里。", Ui.Type.BODY));
@@ -173,40 +167,69 @@ final class CheckInScreen implements AppScreen {
 
         LocalDate today = CheckInSnapshot.today();
         List<CheckInSnapshot.Account> due = new ArrayList<>();
+        int accounts = 0, signed = 0;
         for (CheckInSnapshot.Vendor vendor : directory.vendors()) {
             for (CheckInSnapshot.Account account : vendor.accounts()) {
+                accounts++;
                 CheckInSnapshot.Result result = result(account);
                 if (result == null || result.due(account.id().by(), today)) due.add(account);
+                else if (signedToday(result, today)) signed++;
             }
         }
         boolean available = !loading && !writing;
-        View reload = ui.button("刷新状态", false, this::refresh);
+        LinearLayout overview = ui.row();
+        LinearLayout totals = ui.column();
+        totals.addView(ui.text(accounts + " 个账号", Ui.Type.SECTION));
+        ui.space(totals, 4);
+        String summary = due.isEmpty() && signed > 0 ? signed + " 个今日已签到" : due.size() + " 个待签到";
+        totals.addView(ui.text(summary, Ui.Type.SUPPORT));
+        ui.grow(overview, totals);
+        ui.gap(overview, 8);
+        View reload = ui.iconButton("refresh", "刷新状态", this::refresh);
+        reload.setTooltipText("刷新状态");
         reload.setEnabled(available);
+        reload.setAlpha(available ? 1f : .45f);
+        overview.addView(reload);
+        body.addView(overview);
+        showStatus(status);
+        showStatus(warning);
         if (due.size() > 1) {
-            View all = ui.button("全部签到", true, () -> confirmAll(due));
+            View all = compactButton("全部签到", true, () -> confirmAll(due));
             all.setEnabled(available);
-            body.addView(new AdaptivePair(ui, all, reload, 8));
-        } else body.addView(reload);
+            ui.space(body, 10);
+            body.addView(all, wrapAction());
+        }
 
         for (CheckInSnapshot.Vendor vendor : directory.vendors()) {
-            ui.space(body, 20);
+            ui.space(body, 24);
             TextView heading = ui.text(vendor.name(), Ui.Type.SECTION);
-            heading.setAccessibilityHeading(true);
             body.addView(heading);
-            if (!vendor.settingsPath().isEmpty()) {
-                automaticSwitch("服务商自动签到", vendor.automatic(), available,
-                        value -> saveAutomatic(vendor, null, value));
-            }
+            ui.space(body, 8);
             for (CheckInSnapshot.Account account : vendor.accounts()) {
                 ui.rule(body, 0);
                 renderAccount(vendor, account, today, available);
+            }
+            if (!vendor.settingsPath().isEmpty()) {
+                ui.rule(body, 0);
+                automaticSwitch(body, "服务商自动签到", vendor.automatic(), available,
+                        value -> saveAutomatic(vendor, null, value));
             }
         }
         scroll.post(() -> scroll.scrollTo(0, y));
     }
 
+    private void showStatus(String message) {
+        if (message.isEmpty()) return;
+        ui.space(body, 8);
+        TextView state = ui.text(message, Ui.Type.SUPPORT);
+        state.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        body.addView(state);
+    }
+
     private void renderAccount(CheckInSnapshot.Vendor vendor, CheckInSnapshot.Account account,
                                LocalDate today, boolean available) {
+        LinearLayout entry = ui.column();
+        entry.setPadding(0, ui.dp(12), 0, ui.dp(4));
         LinearLayout details = ui.column();
         String user = account.user().isEmpty() ? "订阅账号" : account.user();
         String title = account.provider().isEmpty() || account.provider().equals(vendor.name()) ? user : account.provider() + " · " + user;
@@ -218,35 +241,49 @@ final class CheckInScreen implements AppScreen {
         if (attempt != null && !attempt.error().isEmpty()) status = attempt.error();
         if (account.providerOff()) status = "服务商已禁用 · " + status;
         details.addView(ui.text(clean(status, scope), Ui.Type.SUPPORT));
-        ui.space(body, 10);
         if (result == null || result.due(account.id().by(), today)) {
-            View check = ui.button("签到", true, () -> performCheckIns(java.util.Collections.singletonList(account)));
+            View check = compactButton("签到", true, () -> performCheckIns(java.util.Collections.singletonList(account)));
             check.setEnabled(available);
             check.setContentDescription("签到 " + title);
-            body.addView(new AdaptivePair(ui, details, check, 10));
-        } else body.addView(details);
+            LinearLayout action = ui.row();
+            action.addView(check, wrapAction());
+            entry.addView(new AdaptivePair(ui, details, action, 12));
+        } else entry.addView(details);
         if (!vendor.settingsPath().isEmpty()) {
-            automaticSwitch("参与自动签到", account.automatic(), available,
+            automaticSwitch(entry, "参与自动签到", account.automatic(), available,
                     value -> saveAutomatic(vendor, account, value));
-        } else ui.space(body, 10);
+        } else ui.space(entry, 8);
+        body.addView(entry);
     }
 
-    private void automaticSwitch(String label, boolean value, boolean enabled, java.util.function.Consumer<Boolean> save) {
+    private void automaticSwitch(LinearLayout target, String label, boolean value, boolean enabled,
+                                 java.util.function.Consumer<Boolean> save) {
         Switch control = new Switch(host.activity());
         control.setText(label);
-        ui.typography(control, Ui.Type.ROW);
-        control.setTextColor(ui.ink);
+        ui.typography(control, Ui.Type.LABEL);
+        control.setTextColor(ui.muted);
         control.setMinHeight(ui.dp(48));
         control.setSwitchPadding(ui.dp(12));
         control.setChecked(value);
         control.setEnabled(enabled);
         control.setOnCheckedChangeListener((button, checked) -> save.accept(checked));
-        body.addView(control, new LinearLayout.LayoutParams(-1, -2));
+        target.addView(control, new LinearLayout.LayoutParams(-1, -2));
     }
 
     private void addButton(String title, boolean primary, Runnable action) {
         ui.space(body, 8);
-        body.addView(ui.button(title, primary, action));
+        body.addView(compactButton(title, primary, action), wrapAction());
+    }
+
+    private Button compactButton(String title, boolean primary, Runnable action) {
+        Button button = ui.button(title, primary, action);
+        button.setMinWidth(ui.dp(64));
+        button.setMinimumWidth(ui.dp(64));
+        return button;
+    }
+
+    private static LinearLayout.LayoutParams wrapAction() {
+        return new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
     }
 
     private CheckInSnapshot.Result result(CheckInSnapshot.Account account) {
@@ -317,9 +354,13 @@ final class CheckInScreen implements AppScreen {
         attempts.put(attempt.id(), attempt);
         received++;
         CheckInSnapshot.Result result = attempt.result();
-        if (result != null && !result.again() && result.day().equals(CheckInSnapshot.today().toString())
-                && (result.outcome().equals("done") || result.outcome().equals("claimed"))) checkedIn++;
+        if (signedToday(result, CheckInSnapshot.today())) checkedIn++;
         render();
+    }
+
+    private static boolean signedToday(CheckInSnapshot.Result result, LocalDate today) {
+        return result != null && !result.again() && result.day().equals(today.toString())
+                && (result.outcome().equals("done") || result.outcome().equals("claimed"));
     }
 
     private void saveAutomatic(CheckInSnapshot.Vendor vendor, CheckInSnapshot.Account account, boolean on) {

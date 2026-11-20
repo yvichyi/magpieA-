@@ -21,7 +21,7 @@ final class MonthHeatmap extends LinearLayout {
         setBackground(ui.shape(ui.card, 14, true));
         LinearLayout weekday = ui.row();
         for (String name : new String[]{"一", "二", "三", "四", "五", "六", "日"}) {
-            TextView heading = ui.text(name, 14, ui.muted, false);
+            TextView heading = ui.text(name, Ui.Type.LABEL);
             heading.setGravity(Gravity.CENTER);
             heading.setMinHeight(ui.dp(36));
             weekday.addView(heading, new LinearLayout.LayoutParams(0, -2, 1));
@@ -46,10 +46,10 @@ final class MonthHeatmap extends LinearLayout {
                 LocalDate date = start.plusDays(i);
                 UsageHeatmap.Day day = days.get(date);
                 boolean inMonth = !date.isBefore(first) && !date.isAfter(last);
-                TextView cell = ui.text(inMonth ? Integer.toString(date.getDayOfMonth()) : "",
-                        15, day == null ? ui.muted : ui.ink, date.equals(selected));
+                TextView cell = ui.text(inMonth ? Integer.toString(date.getDayOfMonth()) : "", Ui.Type.IDENTIFIER);
                 cell.setGravity(Gravity.CENTER);
                 cell.setMinimumHeight(ui.dp(48));
+                cell.setTextColor(day == null ? ui.muted : ui.ink);
                 if (day != null) {
                     boolean selectedDay = date.equals(selected);
                     double ratio = largest == 0 ? 0 : Math.sqrt(day.value(metric) / largest);

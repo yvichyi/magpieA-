@@ -15,7 +15,7 @@ import android.widget.*;
 
 final class Ui {
     enum Type {
-        PAGE(30, 700, 1.18f), SECTION(20, 650, 1.22f), ROW(16, 600, 1.28f),
+        PAGE(28, 700, 1.18f), SECTION(20, 650, 1.22f), ROW(16, 600, 1.28f),
         BODY(15, 400, 1.36f), SUPPORT(13, 400, 1.42f), LABEL(13, 550, 1.30f),
         IDENTIFIER(14, 450, 1.31f), METRIC(28, 650, 1.20f), ACTION(15, 600, 1.25f);
 
@@ -88,7 +88,7 @@ final class Ui {
         view.setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NONE);
         int natural = view.getPaint().getFontMetricsInt(null);
         view.setLineHeight(Math.max(natural, Math.round(view.getTextSize() * type.leading)));
-        if (type == Type.PAGE || type == Type.METRIC) view.setLetterSpacing(-.022f);
+        if (type == Type.METRIC) view.setLetterSpacing(-.022f);
         if (latin) view.setFontFeatureSettings("tnum,lnum");
     }
     Typeface font(boolean numeric,int weight){
@@ -145,9 +145,27 @@ final class Ui {
         b.setStateListAnimator(null);b.setIncludeFontPadding(false);b.setPadding(dp(14), dp(6), dp(14), dp(6));
         StateListDrawable material = new StateListDrawable();
         material.addState(disabled, shape(soft, 16, false));
-        material.addState(new int[0], glassControl(primary));
+        material.addState(new int[0], primary ? glassControl(true)
+                : new RippleDrawable(ColorStateList.valueOf(dark ? 0x1affffff : 0x1517222e),
+                        field(card, 10), shape(Color.WHITE, 10, false)));
         b.setBackground(material);
         b.setOnClickListener(v -> action.run()); UiMotion.press(b); return b;
+    }
+    Button textButton(String label, Runnable action) {
+        Button button = new Button(a);
+        button.setText(label);
+        button.setAllCaps(false);
+        typography(button, Type.ACTION);
+        button.setTextColor(new ColorStateList(new int[][]{
+                {-android.R.attr.state_enabled}, new int[0]}, new int[]{muted, ink}));
+        button.setMinHeight(dp(48));
+        button.setMinWidth(dp(48));
+        button.setMinimumWidth(dp(48));
+        button.setPadding(dp(8), dp(6), dp(8), dp(6));
+        button.setStateListAnimator(null);
+        button.setBackground(ripple(Color.TRANSPARENT, 8));
+        button.setOnClickListener(v -> action.run());
+        return button;
     }
     void grow(LinearLayout row, View v) { row.addView(v, new LinearLayout.LayoutParams(0, -2, 1)); }
     void gap(LinearLayout row, int n) { row.addView(new View(a), new LinearLayout.LayoutParams(dp(n), 1)); }

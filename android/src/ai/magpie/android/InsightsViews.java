@@ -11,8 +11,12 @@ final class InsightsViews {
     private InsightsViews() {}
 
     static LinearLayout content(Ui ui, ScrollView scroll) {
+        return content(ui, scroll, 96);
+    }
+
+    static LinearLayout content(Ui ui, ScrollView scroll, int bottom) {
         LinearLayout content = ui.column();
-        content.setPadding(ui.dp(20), ui.dp(12), ui.dp(20), ui.dp(96));
+        content.setPadding(ui.dp(20), ui.dp(12), ui.dp(20), ui.dp(bottom));
         content.setFocusableInTouchMode(true);
         scroll.setFillViewport(true);
         scroll.setClipToPadding(false);
@@ -36,22 +40,36 @@ final class InsightsViews {
         text.setMinimumHeight(ui.dp(48));
         text.setBackground(ui.ripple(android.graphics.Color.TRANSPARENT, 12));
         text.setOnClickListener(view -> click.run());
+        UiMotion.press(text);
         return text;
+    }
+
+    static void section(Ui ui, LinearLayout root, String title) {
+        ui.space(root, 22);
+        ui.rule(root, 0);
+        ui.space(root, 14);
+        root.addView(title(ui, title, 20));
+        ui.space(root, 10);
     }
 
     static void pair(Ui ui, LinearLayout root, View first, View second) {
         root.addView(new AdaptivePair(ui, first, second, 14, true));
     }
 
+    static LinearLayout metric(Ui ui, String label, String value) {
+        LinearLayout group = ui.column();
+        group.addView(ui.text(label, Ui.Type.LABEL));
+        ui.space(group, 4);
+        group.addView(ui.text(value, Ui.Type.METRIC));
+        return group;
+    }
+
     static void field(Ui ui, LinearLayout layout, String label, String value) {
         if (value.isEmpty()) return;
-        LinearLayout field = ui.column();
-        field.setPadding(0, ui.dp(9), 0, ui.dp(9));
-        field.addView(ui.text(label, Ui.Type.LABEL));
-        ui.space(field, 4);
         TextView text = ui.text(value, Ui.Type.BODY);
         text.setTextIsSelectable(true);
-        field.addView(text);
+        AdaptivePair field = new AdaptivePair(ui, ui.text(label, Ui.Type.LABEL), text, 10);
+        field.setPadding(0, ui.dp(7), 0, ui.dp(7));
         layout.addView(field);
     }
 

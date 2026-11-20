@@ -102,6 +102,9 @@ public final class NativePreviewAcceptance extends Instrumentation {
                 testSettings();
                 require(clipboardVerified, "Clipboard value was unavailable to the SDK instrumentation");
             } else if (mode.equals("small")) {
+                android.content.res.Configuration screen = home.getResources().getConfiguration();
+                require(screen.screenWidthDp <= 320 && screen.fontScale >= 1.99f,
+                        "Populated narrow checks require 320 dp and double font size");
                 singleLine("Magpie");
                 capture("01-connect-large");
                 click("模型");
@@ -203,12 +206,37 @@ public final class NativePreviewAcceptance extends Instrumentation {
         saveFixtureProvider("保存并接入");
         awaitText(reference, 40_000);
         require("connect".equals(home.currentRootId()), "Provider save left the connection screen");
-        click("OpenAI");
+        selectProtocol("OpenAI");
         capture("04-connection-ready");
         click("测试调用");
         awaitText("OpenAI 已收到响应", 55_000);
         capture("05-call-success");
         stage("PROVIDER_SAVE_CONTINUES_TO_REAL_MODEL_CALL");
+        click("模型");
+        awaitText(reference, 40_000);
+        capture("06-populated-models");
+        clickContains(reference);
+        awaitText("模型详情", 20_000);
+        capture("07-model-detail");
+        back();
+        click("用量");
+        awaitText("Token 总量", 40_000);
+        capture("08-populated-usage");
+        click("分析");
+        awaitText("Token 构成", 35_000);
+        capture("09-populated-analysis");
+        click("请求");
+        awaitText("条匹配记录", 35_000);
+        capture("10-populated-requests");
+        clickContains("preview-echo");
+        awaitText("请求明细", 30_000);
+        capture("11-request-detail");
+        back();
+        click("打开设置");
+        waitActivity(ToolsActivity.class);
+        capture("12-settings");
+        back();
+        stage("POPULATED_MODEL_USAGE_AND_REQUEST_DETAIL");
         target.getSharedPreferences("host", 0).edit().remove("launched").commit();
         home = (MainActivity) startActivitySync(new Intent(target, MainActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
@@ -258,7 +286,7 @@ public final class NativePreviewAcceptance extends Instrumentation {
     }
 
     private void testConnection() throws Exception {
-        click("OpenAI");
+        selectProtocol("OpenAI");
         capture("04-connection");
         click("复制接入配置");
         try {
@@ -287,12 +315,18 @@ public final class NativePreviewAcceptance extends Instrumentation {
             stage("CLIPBOARD_READ_CHECK " + trace.get());
         }
         for (String protocol : new String[]{"OpenAI", "Anthropic", "Gemini"}) {
-            if (!protocol.equals("OpenAI")) click(protocol);
+            if (!protocol.equals("OpenAI")) selectProtocol(protocol);
             click("测试调用");
             awaitText(protocol + " 已收到响应", 55_000);
         }
         capture("05-connection-test");
         stage("THREE_ACTUAL_PROTOCOLS clipboard=" + clipboardVerified);
+    }
+
+    private void selectProtocol(String protocol) throws Exception {
+        clickContains("切换接口协议");
+        accessibilityClick(protocol, 20_000);
+        await(() -> decor().hasWindowFocus(), 20_000, "Protocol dialog did not close");
     }
 
     private void createGroup() throws Exception {

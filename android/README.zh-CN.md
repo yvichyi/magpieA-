@@ -1,13 +1,13 @@
-# Magpie Android 2.0 预览 6
+# Magpie Android 2.0 预览 7
 
-采用 Magpie Go 网关和原生安卓界面的独立移植版。[上游项目](https://github.com/yetone/magpie) · [签到、动效与验收](docs/preview-2.0-material/README.md)
+采用 Magpie Go 网关和原生安卓界面的独立移植版。[上游项目](https://github.com/yetone/magpie) · [页面排版与验收](docs/preview-2.0-layout/README.md)
 
 ## 获取完整源码
 
 原版核心固定为 `magpie-core` Git子模块，提交 `593517bf00bc8b0ab00c8ddef3f4d31b310a71b8`（v0.1.4342）。使用以下方式取得包括核心在内的全部源码：
 
 ```sh
-git clone --branch v2.0.0-preview6 --depth 1 --recurse-submodules --shallow-submodules https://github.com/yvichyi/magpieA-.git
+git clone --branch v2.0.0-preview7 --depth 1 --recurse-submodules --shallow-submodules https://github.com/yvichyi/magpieA-.git
 cd magpieA-
 ```
 
@@ -17,7 +17,7 @@ cd magpieA-
 
 ## 安装
 
-ARM64 手机选择 `arm64.apk`，x86_64 模拟器或设备选择 `x86_64.apk`。最低 Android 9.0（API 28）。同签名的 1.12 和预览 1 可直接覆盖升级。高级管理页面需要较新的 Android System WebView 或 Chrome。[安装包与校验文件](https://github.com/yvichyi/magpieA-/releases/tag/v2.0.0-preview6)
+ARM64 手机选择 `arm64.apk`，x86_64 模拟器或设备选择 `x86_64.apk`。最低 Android 9.0（API 28）。同签名的 1.12 和预览 1 可直接覆盖升级。高级管理页面需要较新的 Android System WebView 或 Chrome。[安装包与校验文件](https://github.com/yvichyi/magpieA-/releases/tag/v2.0.0-preview7)
 
 打开应用后，本机网关自动启动。Android 13 及以上会请求通知权限，以便显示运行状态和停止入口。第一次启动会初始化配置和模型目录；状态变为「运行中」后进入管理界面。无需电脑、Termux 或 root 即可使用 API Key 网关功能。
 
@@ -199,7 +199,7 @@ export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk/27.2.12479018"
 bash android/build.sh
 ```
 
-默认输出位于 `dist/Magpie-Android-2.0.0-preview6-arm64.apk`。使用 `TARGET_ABI=x86_64` 构建模拟器包。Android 核心启用 CGO 以使用系统域名解析，ARM64 使用 16 KB ELF 页面对齐。每个 APK 携带对应架构的核心和 Bun。macOS 构建还需设置匹配的 `NDK_HOST_TAG`。
+默认输出位于 `dist/Magpie-Android-2.0.0-preview7-arm64.apk`。使用 `TARGET_ABI=x86_64` 构建模拟器包。Android 核心启用 CGO 以使用系统域名解析，ARM64 使用 16 KB ELF 页面对齐。每个 APK 携带对应架构的核心和 Bun。macOS 构建还需设置匹配的 `NDK_HOST_TAG`。
 
 只有在确认核心源码未改动、只修改 Android 宿主时，才可明确指定 `USE_PREBUILT_CORE=1` 复用 `android/build/lib/` 下已有的核心。正常构建不会默默跳过核心编译。
 

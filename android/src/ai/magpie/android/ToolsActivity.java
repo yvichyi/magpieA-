@@ -5,6 +5,7 @@ import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -62,7 +63,7 @@ public final class ToolsActivity extends Activity {
 
         LinearLayout root = ui.column();
         root.setBackgroundColor(ui.bg);
-        root.addView(header(ui, ui.text("设置", Ui.Type.SECTION),
+        root.addView(header(ui, ui.text("设置", Ui.Type.PAGE),
             "返回" + NavigationModel.title(parentRoot), this::onBackPressed));
         ui.rule(root, 0);
         LinearLayout content = ui.column();
@@ -74,20 +75,27 @@ public final class ToolsActivity extends Activity {
 
         search = new EditText(this);
         search.setSingleLine();
-        search.setTextSize(16);
-        search.setTypeface(ui.font(false, 400));
+        ui.typography(search, Ui.Type.BODY);
         search.setTextColor(ui.ink);
         search.setHintTextColor(ui.muted);
         search.setHint("搜索设置");
         search.setContentDescription("搜索设置");
         search.setMinimumHeight(ui.dp(48));
-        search.setPadding(ui.dp(14), ui.dp(8), ui.dp(14), ui.dp(8));
-        search.setBackground(ui.field(ui.card, 12));
-        content.addView(search, new LinearLayout.LayoutParams(-1, -2));
+        search.setPadding(0, ui.dp(8), 0, ui.dp(8));
+        search.setBackgroundColor(Color.TRANSPARENT);
+        LinearLayout searchField = ui.row();
+        searchField.setPadding(ui.dp(12), 0, ui.dp(12), 0);
+        searchField.setBackground(ui.field(ui.card, 10));
+        View searchIcon = new LineIcon(this, "search", ui.muted);
+        searchIcon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        searchField.addView(searchIcon, new LinearLayout.LayoutParams(ui.dp(18), ui.dp(18)));
+        ui.gap(searchField, 10);
+        ui.grow(searchField, search);
+        content.addView(searchField, new LinearLayout.LayoutParams(-1, -2));
 
         scope = workspaceScope();
         search.setText(saved == null ? navigation.getString(queryKey(scope), "") : saved.getString("query", ""));
-        status = ui.text("", 14, ui.muted, false);
+        status = ui.text("", Ui.Type.SUPPORT);
         status.setVisibility(View.GONE);
         status.setPadding(0, ui.dp(12), 0, 0);
         rows = ui.column();
@@ -223,9 +231,10 @@ public final class ToolsActivity extends Activity {
         });
         if(count == 0) {
             ui.space(rows, 24);
-            rows.addView(ui.text("没有匹配的设置", 16, ui.ink, true));
+            rows.addView(ui.text("没有匹配的设置", Ui.Type.ROW));
             ui.space(rows, 8);
-            rows.addView(ui.button("清除搜索", false, () -> search.setText("")));
+            rows.addView(ui.button("清除搜索", false, () -> search.setText("")),
+                    new LinearLayout.LayoutParams(-2, -2));
         }
     }
 
@@ -241,11 +250,11 @@ public final class ToolsActivity extends Activity {
         if (count == 0) return 0;
         heading(title);
         if (theme) setting("界面主题", ui.appearance.label, "选择界面主题", this::chooseAppearance);
-        if (core) setting("核心设置", "语言和通用偏好", "打开核心设置", () -> open("settings", "核心设置"));
         if (showTransparency) preference(transparency, GlassOptions.reduceTransparency(this),
                 value -> GlassOptions.setReduceTransparency(this, value));
         if (showMotion) preference(motion, GlassOptions.reduceMotion(this),
                 value -> GlassOptions.setReduceMotion(this, value));
+        if (core) setting("核心设置", "语言和通用偏好", "打开核心设置", () -> open("settings", "核心设置"));
         return count;
     }
 
@@ -269,9 +278,9 @@ public final class ToolsActivity extends Activity {
         control.setTypeface(ui.font(false, 500));
         control.setTextColor(ui.ink);
         control.setGravity(Gravity.CENTER_VERTICAL);
-        control.setPadding(0, ui.dp(12), 0, ui.dp(12));
+        control.setPadding(0, ui.dp(8), 0, ui.dp(8));
         control.setSwitchPadding(ui.dp(12));
-        control.setMinHeight(ui.dp(52));
+        control.setMinHeight(ui.dp(48));
         control.setThumbTintList(ColorStateList.valueOf(ui.card));
         control.setTrackTintList(new ColorStateList(
             new int[][] {{android.R.attr.state_checked}, {}},
@@ -284,10 +293,12 @@ public final class ToolsActivity extends Activity {
     }
 
     private void heading(String title) {
-        ui.space(rows, 20);
-        TextView label = ui.text(title, Ui.Type.SECTION);
+        ui.space(rows, 24);
+        TextView label = ui.text(title, Ui.Type.LABEL);
+        label.setTypeface(ui.font(false, 650));
+        label.setAccessibilityHeading(true);
         rows.addView(label);
-        ui.space(rows, 6);
+        ui.space(rows, 4);
     }
 
     private static boolean matches(String query, String heading, String title) {
@@ -324,13 +335,16 @@ public final class ToolsActivity extends Activity {
 
     private LinearLayout directoryRow(View text, String description, Runnable click) {
         LinearLayout row = ui.row();
-        row.setPadding(0, ui.dp(12), 0, ui.dp(12));
-        row.setMinimumHeight(ui.dp(52));
+        row.setPadding(0, ui.dp(10), 0, ui.dp(10));
+        row.setMinimumHeight(ui.dp(48));
         ui.grow(row, text);
-        ui.gap(row, 12);
-        row.addView(new LineIcon(this, "chevron", ui.muted), new LinearLayout.LayoutParams(ui.dp(18), ui.dp(18)));
+        ui.gap(row, 10);
+        View chevron = new LineIcon(this, "chevron", ui.muted);
+        chevron.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        row.addView(chevron, new LinearLayout.LayoutParams(ui.dp(16), ui.dp(16)));
         row.setBackground(ui.ripple(android.graphics.Color.TRANSPARENT, 8));
         row.setContentDescription(description);
+        row.setFocusable(true);
         row.setOnClickListener(v -> click.run());
         return row;
     }

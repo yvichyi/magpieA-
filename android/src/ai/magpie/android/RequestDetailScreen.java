@@ -29,7 +29,7 @@ final class RequestDetailScreen implements AppScreen {
         this.scope = scope;
         this.request = request;
         scroll = new ScrollView(ui.a);
-        content = InsightsViews.content(ui, scroll);
+        content = InsightsViews.content(ui, scroll, 30);
         scroll.setSaveEnabled(false);
     }
 
@@ -64,40 +64,43 @@ final class RequestDetailScreen implements AppScreen {
     }
 
     private void renderMetadata() {
-        content.addView(InsightsViews.title(ui, request.model.isEmpty() ? "请求明细" : request.model, 26));
-        ui.space(content, 8);
-        content.addView(InsightsViews.note(ui, request.statusLabel() + " · " + request.sourceLabel()));
-        ui.space(content, 16);
+        content.addView(InsightsViews.title(ui, request.model.isEmpty() ? "未记录模型" : request.model, 20));
+        ui.space(content, 6);
+        content.addView(new AdaptivePair(ui, ui.text(request.statusLabel(), Ui.Type.ROW),
+                InsightsViews.note(ui, request.sourceLabel()), 8));
         field(content, "请求时间", request.time.atZoneSameInstant(ZoneId.of(scope.zone))
                 .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss XXX", Locale.ROOT)));
         if (request.status > 0) field(content, "HTTP 状态", Long.toString(request.status));
-        field(content, "客户端", request.agentName);
+        field(content, "错误", request.error);
+
+        InsightsViews.section(ui, content, "用量与耗时");
+        InsightsViews.pair(ui, content,
+                InsightsViews.metric(ui, "Token 总量（含已知缓存）", InsightsViews.count(request.tokens())),
+                InsightsViews.metric(ui, "总耗时", InsightsViews.time(request.durationMs())));
+        ui.space(content, 6);
+        field(content, "首 Token 耗时", InsightsViews.time(request.firstTokenMs()));
+        field(content, "输入 / 输出", InsightsViews.count(request.input) + " / " + InsightsViews.count(request.output));
+        field(content, "缓存读取 / 写入", request.cacheKnown()
+                ? InsightsViews.count(request.cacheRead) + " / " + InsightsViews.count(request.cacheWrite) : "缓存计量未知");
+        field(content, "费用", request.priceLabel() + (request.priced ? " USD" : ""));
+
+        InsightsViews.section(ui, content, "请求信息");
         field(content, "服务商", request.providerName);
         field(content, "请求的模型", request.requested);
         field(content, "应答模型", request.served);
+        field(content, "客户端", request.agentName);
         field(content, "账号", request.account);
         field(content, "网关密钥名称", request.callerKey);
         field(content, "设备", request.computerName);
         field(content, "会话标识", request.session);
         if (request.routeId > 0) field(content, "路由标识", Long.toString(request.routeId));
         if (request.tries > 0) field(content, "尝试次数", Long.toString(request.tries));
-        field(content, "总耗时", InsightsViews.time(request.durationMs()));
-        field(content, "首 Token 耗时", InsightsViews.time(request.firstTokenMs()));
-        ui.rule(content, 0);
-        field(content, "Token 总量（含已知缓存）", InsightsViews.count(request.tokens()));
-        field(content, "输入 / 输出", InsightsViews.count(request.input) + " / " + InsightsViews.count(request.output));
-        field(content, "缓存读取 / 写入", request.cacheKnown()
-                ? InsightsViews.count(request.cacheRead) + " / " + InsightsViews.count(request.cacheWrite) : "缓存计量未知");
-        field(content, "费用", request.priceLabel() + (request.priced ? " USD" : ""));
-        field(content, "错误", request.error);
     }
 
     private void resetRoute() {
         route.removeAllViews();
         if (request.routePath() == null) return;
-        ui.rule(route, 0);
-        ui.space(route, 14);
-        route.addView(InsightsViews.title(ui, "网关路由", 20));
+        InsightsViews.section(ui, route, "网关路由");
         route.addView(InsightsViews.action(ui, "读取路由尝试", this::loadRoute));
     }
 
@@ -105,7 +108,7 @@ final class RequestDetailScreen implements AppScreen {
         LinearLayout target = route;
         load(request.routePath(), target, "正在读取路由…", "路由记录不可用，点击重试", this::loadRoute, object -> {
             target.removeAllViews();
-            target.addView(InsightsViews.title(ui, "网关路由", 20));
+            InsightsViews.section(ui, target, "网关路由");
             field(target, "请求的模型", object.optString("model"));
             field(target, "服务商", object.optString("provider"));
             JSONObject group = object.optJSONObject("group");
@@ -135,9 +138,7 @@ final class RequestDetailScreen implements AppScreen {
 
     private void resetConversation() {
         conversation.removeAllViews();
-        ui.rule(conversation, 0);
-        ui.space(conversation, 14);
-        conversation.addView(InsightsViews.title(ui, "会话内容", 20));
+        InsightsViews.section(ui, conversation, "会话内容");
         String unavailable = request.contentUnavailable();
         if (unavailable.isEmpty()) {
             conversation.addView(InsightsViews.action(ui, "显示请求和响应内容", this::loadConversation));
@@ -152,7 +153,7 @@ final class RequestDetailScreen implements AppScreen {
         load(request.contentPath(), target, "正在读取会话内容…", "会话读取失败，点击重试",
                 this::loadConversation, object -> {
             target.removeAllViews();
-            target.addView(InsightsViews.title(ui, "会话内容", 20));
+            InsightsViews.section(ui, target, "会话内容");
             if (object.optBoolean("found")) {
                 showParts(target, "请求", object.optJSONArray("input"));
                 showParts(target, "响应", object.optJSONArray("output"));

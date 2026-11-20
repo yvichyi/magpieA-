@@ -15,6 +15,7 @@ import android.text.InputType;
 import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.view.Choreographer;
+import android.view.Gravity;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
@@ -59,7 +60,7 @@ final class PluginsScreen implements AppScreen {
     private final LinearLayout body, results, operationPanel, find;
     private final PeriodTabs tabs;
     private final EditText query;
-    private final Button searchButton;
+    private final TextView searchButton;
     private final Resource<PluginSnapshot.Installed> installed = new Resource<>();
     private final Resource<List<PluginSnapshot.Builtin>> builtins = new Resource<>();
     private final Resource<List<PluginSnapshot.Page>> pages = new Resource<>();
@@ -140,9 +141,8 @@ final class PluginsScreen implements AppScreen {
         scroll.setFillViewport(true);
         scroll.setVerticalScrollBarEnabled(false);
         body = ui.column();
-        body.setPadding(ui.dp(20), ui.dp(16), ui.dp(20), ui.dp(96));
+        body.setPadding(ui.dp(20), ui.dp(12), ui.dp(20), ui.dp(96));
         body.setFocusableInTouchMode(true);
-        body.setBackgroundColor(ui.bg);
         scroll.addView(body);
 
         LinearLayout heading = ui.row();
@@ -158,7 +158,7 @@ final class PluginsScreen implements AppScreen {
         operationPanel.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         body.addView(operationPanel);
         find = ui.column();
-        ui.space(find, 14);
+        ui.space(find, 12);
         query = input("搜索插件名称或 npm 包", EditorInfo.IME_ACTION_SEARCH, 180);
         query.setBackground(ui.field(ui.card, 12));
         query.setPadding(ui.dp(12), ui.dp(8), ui.dp(12), ui.dp(8));
@@ -167,11 +167,8 @@ final class PluginsScreen implements AppScreen {
             search();
             return true;
         });
-        find.addView(query, new LinearLayout.LayoutParams(-1, -2));
-        searchButton = ui.button("搜索 npm", false, this::search);
-        LinearLayout.LayoutParams searchAction = new LinearLayout.LayoutParams(-2, -2);
-        searchAction.topMargin = ui.dp(8);
-        find.addView(searchButton, searchAction);
+        searchButton = CatalogViews.action(ui, "搜索 npm", this::search);
+        find.addView(new AdaptivePair(ui, query, searchButton, 8));
         body.addView(find);
         results = ui.column();
         body.addView(results);
@@ -480,15 +477,17 @@ final class PluginsScreen implements AppScreen {
     private void renderResults() {
         searchButton.setVisibility(tab == DISCOVER && !needsWorkspace() && !queryText().isEmpty() ? View.VISIBLE : View.GONE);
         results.removeAllViews();
-        ui.space(results, 20);
+        ui.space(results, 16);
         if (tab == DISCOVER) {
             renderDiscovery();
             return;
         }
         if (!ready()) {
-            heading(results, tab == INSTALLED ? "连接工作区后查看已安装插件" : "连接工作区后管理内置插件");
+            heading(results, tab == INSTALLED ? "已安装插件" : "内置插件");
+            note(results, tab == INSTALLED ? "连接工作区后可查看和管理已安装插件。"
+                    : "连接工作区后可查看和配置内置插件。", false);
             button(results, "连接工作区", true, host::openWorkspace);
-            if (tab == INSTALLED) button(results, "发现插件", false, () -> openTab(DISCOVER));
+            if (tab == INSTALLED) results.addView(CatalogViews.action(ui, "发现插件", () -> openTab(DISCOVER)));
             return;
         }
         if (tab == INSTALLED) renderInstalled();
@@ -498,49 +497,56 @@ final class PluginsScreen implements AppScreen {
 
     private void renderInstalled() {
         PluginSnapshot.Installed data = installed.value;
-        sourceStatus(results, installed, "已安装插件");
         if (data == null) {
+            heading(results, "已安装插件");
+            sourceStatus(results, installed, "已安装插件");
             if (needsWorkspace()) button(results, "连接工作区", false, host::openWorkspace);
             return;
         }
-        if (!data.error().isEmpty()) note(results, "插件运行时：" + cap(data.error(), 1800), true);
+        TextView install = writable(false) ? CatalogViews.action(ui, "从 npm 安装", this::installDialog) : null;
         if (data.entries().isEmpty()) {
-            heading(results, "还没有安装插件");
-            ui.space(results, 8);
+            heading(results, "尚未安装插件");
+            sourceStatus(results, installed, "已安装插件");
+            note(results, "可从社区目录挑选插件，也可直接输入 npm 包名。", false);
             Button browse = ui.button("发现插件", true, () -> openTab(DISCOVER));
-            if (writable(false)) {
-                results.addView(new AdaptivePair(ui, browse, ui.button("从 npm 安装", false, this::installDialog), 8));
-            } else results.addView(browse);
-            runtimeStatus(data);
+            ui.space(results, 8);
+            results.addView(install != null ? new AdaptivePair(ui, browse, install, 8) : browse);
+            installedTools(data, false);
             return;
         }
-        Button check = ui.button(updates.pending ? "正在检查更新…" : "检查更新", false, this::checkUpdates);
-        check.setEnabled(!updates.pending);
-        if (writable(false)) {
-            results.addView(new AdaptivePair(ui, check, ui.button("从 npm 安装", false, this::installDialog), 8));
-        } else results.addView(check);
-        if (!updates.error.isEmpty()) note(results, "检查更新失败：" + updates.error, true);
-        if (updates.value != null) {
-            String summary = updates.value.available() == 0 ? "已完成版本检查" : updates.value.available() + " 个插件有更新";
-            if (updates.value.unknown() > 0) summary += " · " + updates.value.unknown() + " 个插件未查到版本";
-            note(results, summary, updates.value.unknown() > 0);
-        }
+        section(results, "已安装插件", install);
+        sourceStatus(results, installed, "已安装插件");
         List<PluginSnapshot.Entry> entries = (updates.value == null ? data : updates.value.state()).entries();
         for (int i = 0; i < Math.min(limit, entries.size()); i++) {
             PluginSnapshot.Entry item = entries.get(i);
             String label = item.off() ? "已停用" : item.error().isEmpty() ? "已启用" : "加载出错";
             String version = item.version().isEmpty() ? "" : "v" + item.version();
             String update = item.updateAvailable() ? "有更新" : "";
-            row(results, "plug", item.name(), item.spec(), join(label, version, item.kind(), update),
+            row(results, item.name(), item.kind(), join(label, version, update), PluginSnapshot.displaySpec(item.spec()),
                     () -> open(PluginDetailScreen.installed(this, item.spec(), scope)));
         }
         more(results, entries.size());
-        runtimeStatus(data);
+        installedTools(data, true);
     }
 
-    private void runtimeStatus(PluginSnapshot.Installed data) {
+    private void installedTools(PluginSnapshot.Installed data, boolean hasEntries) {
+        ui.space(results, 24);
+        TextView check = hasEntries ? CatalogViews.action(ui,
+                updates.pending ? "正在检查更新…" : "检查更新", this::checkUpdates) : null;
+        if (check != null) {
+            check.setEnabled(!updates.pending);
+            if (updates.pending) check.setTextColor(ui.muted);
+        }
+        section(results, "运行环境", check);
+        if (!updates.error.isEmpty()) note(results, "检查更新失败：" + updates.error, true);
+        if (updates.value != null) {
+            String summary = updates.value.available() == 0 ? "已完成版本检查" : updates.value.available() + " 个插件有更新";
+            if (updates.value.unknown() > 0) summary += " · " + updates.value.unknown() + " 个插件未查到版本";
+            note(results, summary, updates.value.unknown() > 0);
+        }
         note(results, data.bun() ? "Bun" + (data.bunVersion().isEmpty() ? " 已就绪" : " " + data.bunVersion())
                 : "Bun 尚未就绪，首次安装时网关会尝试下载运行时。", false);
+        if (!data.error().isEmpty()) note(results, "插件运行时：" + cap(data.error(), 1800), true);
     }
 
     private Resource<PluginSnapshot.Discoveries> communityDirectory() {
@@ -550,24 +556,21 @@ final class PluginsScreen implements AppScreen {
     private void renderDiscovery() {
         String text = queryText();
         boolean publicOnly = needsWorkspace();
-        if (publicOnly) {
-            note(results, "连接工作区后可搜索 npm 并安装插件。", false);
-            button(results, "连接工作区", false, host::openWorkspace);
-            ui.space(results, 16);
-        }
-        if (installed.value != null && !installed.value.registry().isEmpty()) {
-            note(results, "npm 镜像 · " + installed.value.registry(), false);
-        }
         if (!publicOnly && !text.isEmpty() && text.equals(requestedQuery)) {
             heading(results, "npm 搜索结果");
             sourceStatus(results, search, "npm 搜索结果");
             if (search.value != null) discoveryRows(search.value.entries(), "npm 没有返回匹配的插件");
+            ui.space(results, 24);
         }
-        heading(results, "社区目录");
+        View directoryAction = publicOnly ? CatalogViews.action(ui, "连接工作区", host::openWorkspace) : null;
+        if (!publicOnly && text.isEmpty() && writable(false)) {
+            directoryAction = CatalogViews.action(ui, "从 npm 安装", this::installDialog);
+        }
+        section(results, "社区目录", directoryAction);
         Resource<PluginSnapshot.Discoveries> community = communityDirectory();
         if (community == publicListings && community.value != null && !community.error.isEmpty()) {
-            note(results, "公开目录暂不可达，正在显示随安装包提供的上游社区目录。", false);
-            button(results, "重新读取", false, () -> readPublicListings(true));
+            results.addView(new AdaptivePair(ui, ui.text("当前显示安装包内的社区目录。", Ui.Type.SUPPORT),
+                    CatalogViews.action(ui, "重新读取", () -> readPublicListings(true)), 8));
         } else sourceStatus(results, community, "社区目录");
         if (community.value != null) discoveryRows(filter(community.value.entries(), text, true), "目录中没有匹配的插件");
         if (publicOnly) return;
@@ -578,7 +581,10 @@ final class PluginsScreen implements AppScreen {
             if (!github.value.error().isEmpty()) note(results, "GitHub 目录暂不完整：" + cap(github.value.error(), 1000), true);
             discoveryRows(filter(github.value.entries(), text, false), github.value.error().isEmpty() ? "暂无匹配的 GitHub 插件" : "");
         }
-        if (text.isEmpty() && writable(false)) button(results, "从 npm 安装", false, this::installDialog);
+        if (installed.value != null && !installed.value.registry().isEmpty()) {
+            ui.space(results, 12);
+            note(results, "npm 镜像 · " + installed.value.registry(), false);
+        }
     }
 
     private static List<PluginSnapshot.Discovery> filter(List<PluginSnapshot.Discovery> source, String query, boolean community) {
@@ -593,7 +599,7 @@ final class PluginsScreen implements AppScreen {
         for (int i = 0; i < Math.min(limit, items.size()); i++) {
             PluginSnapshot.Discovery item = items.get(i);
             String state = installed.value != null && installed.value.match(item) != null ? "已安装" : "";
-            row(results, "plug", item.name(), item.description().isEmpty() ? item.spec() : item.description(),
+            row(results, item.name(), item.description().isEmpty() ? item.spec() : item.description(),
                     join(state, item.kindLabel(), item.source()), () -> openDiscovery(item));
         }
         if (items.isEmpty() && !empty.isEmpty()) note(results, empty, false);
@@ -601,6 +607,7 @@ final class PluginsScreen implements AppScreen {
     }
 
     private void renderBuiltins() {
+        heading(results, "内置插件");
         sourceStatus(results, builtins, "内置插件");
         if (builtins.value == null) return;
         if (builtins.value.isEmpty()) note(results, "当前网关没有返回内置插件。", false);
@@ -608,7 +615,7 @@ final class PluginsScreen implements AppScreen {
             String state = item.on() ? "已启用" : "已停用";
             if (!item.broken().isEmpty()) state = join(state, "配置只读");
             else if (item.inUse() > 0) state = join(state, "使用中");
-            row(results, "settings", item.name(), item.description(), state,
+            row(results, item.name(), item.description(), state,
                     () -> open(PluginDetailScreen.builtin(this, item.id(), scope)));
         }
     }
@@ -618,15 +625,15 @@ final class PluginsScreen implements AppScreen {
         heading(results, "扩展功能");
         sourceStatus(results, pages, "插件页面");
         if (pages.value != null) for (PluginSnapshot.Page page : pages.value) {
-            row(results, "plug", page.title(), "", "", () -> openPage(page));
+            row(results, page.title(), "", "", () -> openPage(page));
         }
         PluginSnapshot.Builtin library = builtin("library");
-        if (library == null || library.on()) row(results, "library", "资料库", "管理指令、MCP、技能和资源", "", () -> advanced("library", null, null));
-        row(results, "server", "Agent 配置", AppNavigation.remote(activity) ? "管理远程电脑上的 Agent" : "连接远程工作空间后可管理电脑上的 Agent", "", () -> openRemote("agents"));
+        if (library == null || library.on()) row(results, "资料库", "管理指令、MCP、技能和资源", "", () -> advanced("library", null, null));
+        row(results, "Agent 配置", AppNavigation.remote(activity) ? "管理远程电脑上的 Agent" : "连接远程工作空间后可管理电脑上的 Agent", "", () -> openRemote("agents"));
         PluginSnapshot.Builtin sessions = builtin("sessions");
-        if (sessions == null || sessions.on()) row(results, "clock", "会话", AppNavigation.remote(activity)
+        if (sessions == null || sessions.on()) row(results, "会话", AppNavigation.remote(activity)
                 ? "查看远程工作空间的会话" : "连接远程工作空间后可查看会话", "", () -> openRemote("sessions"));
-        button(results, "高级插件管理", false, () -> advanced("plugins", null, null));
+        row(results, "高级插件管理", "", "", () -> advanced("plugins", null, null));
     }
 
     private void more(LinearLayout target, int total) {
@@ -893,25 +900,30 @@ final class PluginsScreen implements AppScreen {
     }
 
     void heading(LinearLayout target, String text) {
-        TextView title = ui.text(text, 18, ui.ink, true);
-        title.setAccessibilityHeading(true);
-        target.addView(title);
+        section(target, text, null);
+    }
+
+    private void section(LinearLayout target, String name, View action) {
+        TextView title = ui.text(name, Ui.Type.SECTION);
+        target.addView(action == null ? title : new AdaptivePair(ui, title, action, 8));
     }
 
     void note(LinearLayout target, String text, boolean prominent) {
         if (text.isEmpty()) return;
-        TextView label = ui.text(text, 15, prominent ? ui.ink : ui.muted, prominent);
-        label.setPadding(0, ui.dp(5), 0, ui.dp(5));
+        TextView label = ui.text(text, prominent ? Ui.Type.BODY : Ui.Type.SUPPORT);
+        label.setPadding(0, ui.dp(4), 0, ui.dp(4));
         target.addView(label);
     }
 
-    private void row(LinearLayout target, String icon, String title, String subtitle, String detail, Runnable open) {
+    private void row(LinearLayout target, String title, String subtitle, String detail, Runnable open) {
+        row(target, title, subtitle, detail, "", open);
+    }
+
+    private void row(LinearLayout target, String title, String subtitle, String detail, String identity, Runnable open) {
         LinearLayout row = ui.row();
         row.setPadding(0, ui.dp(12), 0, ui.dp(12));
         row.setMinimumHeight(ui.dp(56));
-        row.setBackground(ui.ripple(Color.TRANSPARENT, 12));
-        row.addView(ui.iconTile(icon, 34));
-        ui.gap(row, 9);
+        row.setBackground(ui.ripple(Color.TRANSPARENT, 8));
         LinearLayout labels = ui.column();
         TextView name = ui.text(title, Ui.Type.ROW);
         name.setMaxLines(3);
@@ -926,12 +938,16 @@ final class PluginsScreen implements AppScreen {
         }
         if (!detail.isEmpty()) {
             ui.space(labels, 4);
-            labels.addView(ui.text(detail, Ui.Type.SUPPORT));
+            labels.addView(ui.text(detail, Ui.Type.LABEL));
         }
         ui.grow(row, labels);
         ui.gap(row, 8);
-        row.addView(new LineIcon(activity, "chevron", ui.muted), new LinearLayout.LayoutParams(ui.dp(20), ui.dp(20)));
-        row.setContentDescription(join(title, subtitle, detail));
+        View chevron = new LineIcon(activity, "chevron", ui.muted);
+        chevron.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        row.addView(chevron, new LinearLayout.LayoutParams(ui.dp(16), ui.dp(16)));
+        row.setContentDescription(join(title, title.equals(identity) ? "" : identity, subtitle, detail));
+        row.setFocusable(true);
+        labels.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
         row.setOnClickListener(v -> open.run());
         target.addView(row);
         ui.rule(target, 0);

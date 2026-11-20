@@ -8,7 +8,6 @@ import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
-import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -48,10 +47,10 @@ final class InsightsScreen implements AppScreen {
     private final ScreenHost host;
     private final Ui ui;
     private final ScrollView scroll;
-    private final LinearLayout body, sections, tools;
+    private final LinearLayout body, tools;
+    private final PeriodTabs sections;
     private final TextView period, filters, status, offline;
     private final View refresh, connect;
-    private final TextView[] tabs = new TextView[TABS.length];
     private final int[] positions = new int[TABS.length];
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ThreadPoolExecutor reads = new ThreadPoolExecutor(2, 2, 10, TimeUnit.SECONDS,
@@ -82,8 +81,8 @@ final class InsightsScreen implements AppScreen {
 
     private InsightChart chart;
     private LedgerSnapshot trend;
-    private TextView pointDetails;
-    private Button earlierPoint, laterPoint;
+    private TextView pointDate, pointDetails;
+    private View earlierPoint, laterPoint;
     private int pointIndex;
 
     private record AppearanceState(LedgerQuery query, long offset, int tab, int[] positions,
@@ -109,9 +108,11 @@ final class InsightsScreen implements AppScreen {
         scroll = new InsetScrollView(ui.a);
         scroll.setSaveEnabled(false);
         LinearLayout content = InsightsViews.content(ui, scroll);
-        content.addView(new AdaptivePair(ui, ui.text("用量", Ui.Type.PAGE),
-                ui.button("签到", false, () -> host.openDetail("签到", new CheckInScreen(host))), 10));
-        ui.space(content, 12);
+        TextView checkIn = ui.textButton("签到", () ->
+                host.openDetail("签到", new CheckInScreen(host)));
+        checkIn.setTextColor(ui.accent);
+        content.addView(new AdaptivePair(ui, ui.text("用量", Ui.Type.PAGE), checkIn, 12));
+        ui.space(content, 6);
         offline = InsightsViews.note(ui, "");
         offline.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         content.addView(offline);
@@ -121,14 +122,9 @@ final class InsightsScreen implements AppScreen {
         connectLayout.bottomMargin = ui.dp(12);
         content.addView(connect, connectLayout);
 
-        sections = ui.row();
-        for (int i = 0; i < tabs.length; i++) {
-            int index = i;
-            tabs[i] = segment(TABS[i], () -> selectTab(index, false));
-            ui.grow(sections, tabs[i]);
-        }
+        sections = new PeriodTabs(ui, TABS, tab, index -> selectTab(index, false));
         LinearLayout.LayoutParams sectionsLayout = new LinearLayout.LayoutParams(-1, -2);
-        sectionsLayout.bottomMargin = ui.dp(8);
+        sectionsLayout.bottomMargin = ui.dp(4);
         content.addView(sections, sectionsLayout);
 
         tools = ui.row();
@@ -143,7 +139,7 @@ final class InsightsScreen implements AppScreen {
         status = InsightsViews.note(ui, "");
         status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         content.addView(status);
-        ui.space(content, 12);
+        ui.space(content, 8);
         body = ui.column();
         content.addView(body);
         updateScope();
@@ -338,11 +334,11 @@ final class InsightsScreen implements AppScreen {
         connect.setVisibility(connected ? View.GONE : View.VISIBLE);
         sections.setVisibility(connected || cached ? View.VISIBLE : View.GONE);
         tools.setVisibility(connected ? View.VISIBLE : View.GONE);
-        for (int i = 0; i < tabs.length; i++) selected(tabs[i], tab == i);
+        sections.select(tab, false);
         period.setVisibility(calendar ? View.GONE : View.VISIBLE);
         String range = tab == REQUESTS && query.day != null ? query.day.toString()
                 : PERIOD_LABELS[indexOf(PERIODS, query.period)];
-        period.setText(calendar ? "" : range + "  ⌄");
+        period.setText(calendar ? "" : range.replace("最近", "近") + "  ⌄");
         period.setContentDescription("统计范围 · " + range);
         period.setEnabled(active && connected);
         int filterCount = (tab == REQUESTS ? query : query.day(null)).filterCount();
@@ -379,15 +375,18 @@ final class InsightsScreen implements AppScreen {
 
     private void renderOverview(LedgerSnapshot data) {
         LedgerSnapshot.Totals totals = data.totals;
-        InsightsViews.pair(ui, body, measure("Token 总量", InsightsViews.count(totals.tokens())),
-                measure("调用", InsightsViews.count(totals.calls)));
-        ui.space(body, 10);
-        body.addView(InsightsViews.note(ui, "费用 · " + InsightsViews.price(totals.cost, totals.unpriced)));
+        ui.space(body, 8);
+        InsightsViews.pair(ui, body,
+                InsightsViews.metric(ui, "Token 总量", InsightsViews.count(totals.tokens())),
+                InsightsViews.metric(ui, "调用次数", InsightsViews.count(totals.calls)));
+        ui.space(body, 6);
+        statLine("费用", InsightsViews.price(totals.cost, totals.unpriced));
         renderTrend(data);
         section("调用健康");
         InsightsViews.pair(ui, body,
-                measure("完成率", totals.calls == 0 ? "—" : UsageSnapshot.percent(totals.completed(), totals.calls)),
-                measure("首 Token 平均耗时", InsightsViews.time(totals.meanFirstTokenMs())));
+                InsightsViews.metric(ui, "完成率",
+                        totals.calls == 0 ? "—" : UsageSnapshot.percent(totals.completed(), totals.calls)),
+                InsightsViews.metric(ui, "首 Token 平均耗时", InsightsViews.time(totals.meanFirstTokenMs())));
         ui.space(body, 8);
         body.addView(InsightsViews.note(ui, InsightsViews.count(totals.completed()) + " 次完成 · "
                 + InsightsViews.count(totals.errors) + " 次最终失败 · " + InsightsViews.count(totals.canceled) + " 次取消"));
@@ -398,20 +397,8 @@ final class InsightsScreen implements AppScreen {
         }
     }
 
-    private LinearLayout measure(String name, String value) {
-        LinearLayout group = ui.column();
-        group.addView(ui.text(value, Ui.Type.METRIC));
-        ui.space(group, 3);
-        group.addView(ui.text(name, Ui.Type.LABEL));
-        return group;
-    }
-
     private void section(String title) {
-        ui.space(body, 18);
-        ui.rule(body, 0);
-        ui.space(body, 14);
-        body.addView(InsightsViews.title(ui, title, 20));
-        ui.space(body, 8);
+        InsightsViews.section(ui, body, title);
     }
 
     private void renderTrend(LedgerSnapshot data) {
@@ -434,15 +421,19 @@ final class InsightsScreen implements AppScreen {
             }
         }
         chart = new InsightChart(ui, data.series, trendMetric, selectedPoint, this::movePoint);
-        body.addView(chart, new LinearLayout.LayoutParams(-1, ui.dp(136)));
-        ui.space(body, 8);
+        body.addView(chart, new LinearLayout.LayoutParams(-1, ui.dp(152)));
+        ui.space(body, 6);
+        LinearLayout selection = ui.row();
+        pointDate = ui.text("", Ui.Type.ROW);
+        pointDate.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        ui.grow(selection, pointDate);
+        earlierPoint = ui.iconButton("back", "上一个点", () -> movePoint(pointIndex - 1));
+        laterPoint = ui.iconButton("chevron", "下一个点", () -> movePoint(pointIndex + 1));
+        selection.addView(earlierPoint);
+        selection.addView(laterPoint);
+        body.addView(selection);
         pointDetails = InsightsViews.note(ui, "");
-        pointDetails.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         body.addView(pointDetails);
-        ui.space(body, 8);
-        earlierPoint = ui.button("上一个点", false, () -> movePoint(pointIndex - 1));
-        laterPoint = ui.button("下一个点", false, () -> movePoint(pointIndex + 1));
-        InsightsViews.pair(ui, body, earlierPoint, laterPoint);
         if (!data.bucket.equals("week")) {
             body.addView(InsightsViews.action(ui, "查看当天请求", () -> {
                 if (trend == null) return;
@@ -467,14 +458,16 @@ final class InsightsScreen implements AppScreen {
         String time = trend.bucket.equals("hour") ? date + " · " + point.label
                 : trend.bucket.equals("week") ? date + " 起的一周" : date.toString();
         LedgerSnapshot.Totals totals = point.totals;
-        pointDetails.setText(time + " · " + (index + 1) + " / " + trend.series.size() + "\n"
-                + InsightsViews.count(totals.calls) + " 次 · " + InsightsViews.count(totals.tokens())
+        pointDate.setText(time);
+        pointDate.setContentDescription(time + "，第 " + (index + 1) + " 个点，共 " + trend.series.size() + " 个");
+        pointDetails.setText(InsightsViews.count(totals.calls) + " 次 · " + InsightsViews.count(totals.tokens())
                 + " Token\n" + InsightsViews.price(totals.cost, totals.unpriced));
     }
 
     private void renderAnalysis(LedgerSnapshot data) {
         LedgerSnapshot.Totals totals = data.totals;
-        section("Token 构成");
+        body.addView(InsightsViews.title(ui, "Token 构成", 20));
+        ui.space(body, 10);
         String[] names = {"输入", "输出", "缓存读取", "缓存写入"};
         long[] values = {totals.input, totals.output, totals.cacheRead, totals.cacheWrite};
         int[] colors = ui.dark ? new int[]{0xffedf2f7, 0xffb5c0cc, 0xff8998a7, 0xff65717c}
@@ -524,18 +517,17 @@ final class InsightsScreen implements AppScreen {
     }
 
     private void statLine(String label, String value, int marker) {
-        LinearLayout row = ui.row();
-        row.setPadding(0, ui.dp(6), 0, ui.dp(6));
+        LinearLayout key = ui.row();
         if (marker != Color.TRANSPARENT) {
             View dot = new View(ui.a);
             dot.setBackground(ui.shape(marker, 3, false));
-            row.addView(dot, new LinearLayout.LayoutParams(ui.dp(9), ui.dp(9)));
-            ui.gap(row, 9);
+            key.addView(dot, new LinearLayout.LayoutParams(ui.dp(9), ui.dp(9)));
+            ui.gap(key, 8);
         }
-        ui.grow(row, InsightsViews.note(ui, label));
-        TextView amount = ui.text(value, 16, ui.ink, true);
-        amount.setGravity(Gravity.END);
-        ui.grow(row, amount);
+        key.addView(InsightsViews.note(ui, label), new LinearLayout.LayoutParams(-2, -2));
+        TextView amount = ui.text(value, Ui.Type.ROW);
+        AdaptivePair row = new AdaptivePair(ui, key, amount, 10);
+        row.setPadding(0, ui.dp(6), 0, ui.dp(6));
         body.addView(row);
     }
 
@@ -559,9 +551,12 @@ final class InsightsScreen implements AppScreen {
                 entry.setPadding(0, ui.dp(10), 0, ui.dp(10));
                 entry.setMinimumHeight(ui.dp(48));
                 entry.setBackground(ui.ripple(Color.TRANSPARENT, 12));
-                entry.addView(ui.text(group.name.isEmpty() ? "未记录" : group.name, 16, ui.ink, true));
-                entry.addView(InsightsViews.note(ui, InsightsViews.count(totals.tokens()) + " Token · "
-                        + InsightsViews.count(totals.calls) + " 次 · " + InsightsViews.price(totals.cost, totals.unpriced)));
+                entry.addView(new AdaptivePair(ui,
+                        ui.text(group.name.isEmpty() ? "未记录" : group.name, Ui.Type.ROW),
+                        ui.text(InsightsViews.count(totals.tokens()) + " Token", Ui.Type.LABEL), 10));
+                ui.space(entry, 4);
+                entry.addView(InsightsViews.note(ui, InsightsViews.count(totals.calls) + " 次 · "
+                        + InsightsViews.price(totals.cost, totals.unpriced)));
                 if (maximum > 0) {
                     ui.space(entry, 7);
                     entry.addView(new DistributionBar(ui, new double[]{(double) totals.tokens() / maximum},
@@ -585,27 +580,28 @@ final class InsightsScreen implements AppScreen {
     }
 
     private void renderCalendar(UsageHeatmap heat) {
-        ui.space(body, 6);
-        body.addView(InsightsViews.note(ui, heat.from + " 至 " + heat.to + " · " + scope.zone));
-        ui.space(body, 8);
         if (month == null || month.isBefore(YearMonth.from(heat.from)) || month.isAfter(YearMonth.from(heat.to))) {
             month = YearMonth.from(heat.to);
             calendarDay = heat.to;
         }
-        TextView monthTitle = InsightsViews.title(ui, month.format(MONTH_FORMAT), 18);
-        body.addView(monthTitle);
-        ui.space(body, 6);
-        Button previous = ui.button("上个月", false, () -> moveMonth(-1));
-        Button next = ui.button("下个月", false, () -> moveMonth(1));
+        LinearLayout monthActions = ui.row();
+        View previous = ui.iconButton("back", "上个月", () -> moveMonth(-1));
+        View next = ui.iconButton("chevron", "下个月", () -> moveMonth(1));
         previous.setEnabled(month.isAfter(YearMonth.from(heat.from)));
         next.setEnabled(month.isBefore(YearMonth.from(heat.to)));
         previous.setAlpha(previous.isEnabled() ? 1f : .45f);
         next.setAlpha(next.isEnabled() ? 1f : .45f);
-        InsightsViews.pair(ui, body, previous, next);
+        monthActions.addView(previous);
+        monthActions.addView(next);
+        body.addView(new AdaptivePair(ui, InsightsViews.title(ui, month.format(MONTH_FORMAT), 20),
+                monthActions, 8));
+        body.addView(InsightsViews.note(ui, heat.from + " 至 " + heat.to + " · " + scope.zone));
+        ui.space(body, 6);
         body.addView(segments(METRICS, calendarMetric, value -> {
             calendarMetric = value;
             render(scroll.getScrollY());
         }));
+        ui.space(body, 8);
         body.addView(new MonthHeatmap(ui, heat, month, calendarDay, calendarMetric, day -> {
             calendarDay = day;
             render(scroll.getScrollY());
@@ -613,8 +609,7 @@ final class InsightsScreen implements AppScreen {
         if (calendarDay == null) return;
         for (UsageHeatmap.Day day : heat.recent(53)) {
             if (!day.date.equals(calendarDay)) continue;
-            ui.space(body, 12);
-            body.addView(InsightsViews.title(ui, calendarDay.toString(), 18));
+            section(calendarDay.toString());
             body.addView(InsightsViews.note(ui, MonthHeatmap.stats(day)));
             body.addView(InsightsViews.action(ui, "查看当天请求", () -> drilldown(query.day(day.date))));
             break;
@@ -642,15 +637,8 @@ final class InsightsScreen implements AppScreen {
         selectTab(REQUESTS, true);
     }
 
-    private LinearLayout segments(String[] choices, int current, java.util.function.IntConsumer change) {
-        LinearLayout row = ui.row();
-        for (int i = 0; i < choices.length; i++) {
-            int index = i;
-            TextView item = segment(choices[i], () -> change.accept(index));
-            selected(item, i == current);
-            ui.grow(row, item);
-        }
-        return row;
+    private View segments(String[] choices, int current, java.util.function.IntConsumer change) {
+        return new PeriodTabs(ui, choices, current, change);
     }
 
     private TextView segment(String label, Runnable change) {
@@ -658,12 +646,6 @@ final class InsightsScreen implements AppScreen {
         button.setGravity(Gravity.CENTER);
         button.setPadding(ui.dp(4), ui.dp(4), ui.dp(4), ui.dp(4));
         return button;
-    }
-
-    private void selected(TextView item, boolean selected) {
-        item.setSelected(selected);
-        item.setTextColor(selected ? ui.accent : ui.muted);
-        item.setBackground(ui.ripple(selected ? (ui.swiss() ? ui.accentSoft : ui.soft) : Color.TRANSPARENT, 12));
     }
 
     private void choosePeriod() {

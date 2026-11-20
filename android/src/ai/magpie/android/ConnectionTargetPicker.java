@@ -31,18 +31,17 @@ final class ConnectionTargetPicker implements AppScreen {
         root.setFocusableInTouchMode(true);
         query = new EditText(ui.a);
         query.setSingleLine(true);
-        query.setTextSize(16);
-        query.setTypeface(ui.font(false, 400));
+        ui.typography(query, Ui.Type.BODY);
         query.setTextColor(ui.ink);
         query.setHintTextColor(ui.muted);
-        query.setHint("搜索模型、分组或服务商");
+        query.setHint("搜索名称或标识");
         query.setContentDescription("搜索接入目标");
         query.setMinHeight(ui.dp(48));
-        query.setPadding(ui.dp(14), ui.dp(10), ui.dp(14), ui.dp(10));
-        query.setBackground(ui.shape(ui.card, 14, true));
+        query.setPadding(ui.dp(12), ui.dp(6), ui.dp(12), ui.dp(6));
+        query.setBackground(ui.field(ui.card, 10));
         root.addView(query, new LinearLayout.LayoutParams(-1, -2));
-        TextView count = ui.text("", 13, ui.muted, false);
-        count.setPadding(0, ui.dp(10), 0, ui.dp(10));
+        TextView count = ui.text("", Ui.Type.LABEL);
+        count.setPadding(0, ui.dp(12), 0, ui.dp(6));
         root.addView(count);
         ListView list = new ListView(ui.a);
         list.setDivider(new ColorDrawable(ui.line));
@@ -55,7 +54,7 @@ final class ConnectionTargetPicker implements AppScreen {
             @Override public long getItemId(int position) { return position; }
             @Override public View getView(int position, View recycled, ViewGroup parent) {
                 ConnectScreen.Target row = rows.get(position);
-                return CatalogViews.row(ui, row.name, row.group + " · " + row.reference, () -> {
+                return CatalogViews.row(ui, row.name, row.reference, row.group, () -> {
                     if (!current.getAsBoolean()) {
                         Toast.makeText(ui.a, "工作空间已变化，请重新选择", Toast.LENGTH_SHORT).show();
                         return;

@@ -37,22 +37,31 @@ final class CatalogViews {
     }
 
     static View row(Ui ui, String title, String reference, String description, Runnable open) {
+        return row(ui, title, reference, description, open, true);
+    }
+
+    static View fullRow(Ui ui, String title, String reference, String description, Runnable open) {
+        return row(ui, title, reference, description, open, false);
+    }
+
+    private static View row(Ui ui, String title, String reference, String description, Runnable open,
+                            boolean compact) {
         LinearLayout row = ui.row();
         row.setMinimumHeight(ui.dp(56));
-        row.setPadding(0, ui.dp(13), ui.dp(2), ui.dp(13));
+        row.setPadding(0, ui.dp(11), ui.dp(2), ui.dp(11));
         LinearLayout text = ui.column();
         TextView name = ui.text(title, Ui.Type.ROW);
-        if (open != null) limit(name, 2);
+        if (open != null && compact) limit(name, 2);
         text.addView(name);
         if (!reference.isEmpty()) {
             ui.space(text, 3);
             TextView identifier = ui.text(reference, Ui.Type.IDENTIFIER);
             identifier.setTextColor(ui.muted);
-            if (open != null) limit(identifier, 1);
+            if (open != null && compact) limit(identifier, 1);
             text.addView(identifier);
         }
         if (!description.isEmpty()) {
-            ui.space(text, 4);
+            ui.space(text, 3);
             text.addView(ui.text(description, Ui.Type.SUPPORT));
         }
         ui.grow(row, text);

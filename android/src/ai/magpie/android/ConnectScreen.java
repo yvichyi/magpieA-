@@ -81,14 +81,16 @@ final class ConnectScreen implements AppScreen {
         scroll.addView(body, new ScrollView.LayoutParams(-1, -2));
 
         LinearLayout heading = ui.row();
-        TextView title = ui.text("接入", Ui.Type.PAGE);
+        LinearLayout title = ui.column();
+        title.addView(ui.text("接入", Ui.Type.PAGE));
+        ui.space(title, 4);
+        status = ui.text("", Ui.Type.SUPPORT);
+        status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        title.addView(status);
         ui.grow(heading, title);
         heading.addView(ui.iconButton("network", "网关与访问权限", () -> host.advanced("gateway")));
         body.addView(heading);
-        status = ui.text("", Ui.Type.SUPPORT);
-        status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-        body.addView(status);
-        ui.space(body, 20);
+        ui.space(body, 18);
         configuration = ui.column();
         body.addView(configuration);
         render();
@@ -206,16 +208,17 @@ final class ConnectScreen implements AppScreen {
         boolean remote = AppNavigation.remote(activity);
         if (!AppNavigation.ready(activity)) {
             configuration.addView(ui.text("选择工作区", Ui.Type.SECTION));
-            ui.space(configuration, 8);
-            configuration.addView(ui.text("可以使用这台手机运行 Magpie，也可以连接电脑或服务器上的 Magpie。", Ui.Type.BODY));
-            ui.space(configuration, 16);
+            ui.space(configuration, 6);
+            configuration.addView(ui.text("本机网关在这台手机上运行。", Ui.Type.BODY));
+            ui.space(configuration, 14);
             HostActions actions = new HostActions(activity, ui, host::refresh);
             boolean starting = GatewayService.state.startsWith("正在启动");
             Button start = ui.button(starting ? "正在启动…" : "启动网关", true, actions::start);
             start.setEnabled(!starting);
             configuration.addView(start);
-            ui.space(configuration, 8);
-            configuration.addView(ui.button("连接远程工作区", false, actions::remote));
+            ui.space(configuration, 4);
+            configuration.addView(ui.textButton("连接远程工作区", actions::remote),
+                    new LinearLayout.LayoutParams(-2, -2));
             return;
         }
         if (catalog == null) {
@@ -234,45 +237,49 @@ final class ConnectScreen implements AppScreen {
         Target target = null;
         for (Target candidate : targets) if (candidate.reference.equals(reference)) target = candidate;
         if (targets.isEmpty()) {
-            configuration.addView(ui.text("添加第一个服务商", 20, ui.ink, true));
+            configuration.addView(ui.text("添加第一个服务商", Ui.Type.SECTION));
             ui.space(configuration, 8);
             configuration.addView(ui.text("添加模型来源并启用模型，即可生成接入配置。", 15, ui.muted, false));
             ui.space(configuration, 16);
             configuration.addView(ui.button("添加服务商", true, this::addProvider));
-            ui.space(configuration, 8);
-            configuration.addView(ui.button("管理模型与分组", false, () -> host.openRoot("home")));
+            ui.space(configuration, 4);
+            configuration.addView(ui.textButton("管理模型与分组", () -> host.openRoot("home")),
+                    new LinearLayout.LayoutParams(-2, -2));
             return;
         }
 
-        configuration.addView(new PeriodTabs(ui, PROTOCOLS, protocol, index -> {
-            protocol = index;
-            preferences.edit().putInt(preferenceKey("protocol"), index).apply();
-            result = "";
-            successfulTest = false;
-            render();
-        }));
-        ui.space(configuration, 14);
+        LinearLayout selection = ui.column();
+        selection.addView(ui.text("接入目标", Ui.Type.LABEL));
+        ui.space(selection, 3);
+        selection.addView(ui.text(target == null ? "请选择模型或分组" : target.name, Ui.Type.SECTION));
+        if (target != null && !target.group.isEmpty()) {
+            ui.space(selection, 3);
+            selection.addView(ui.text(target.group, Ui.Type.SUPPORT));
+        }
         Scope displayedScope = loadedScope;
-        View targetRow = CatalogViews.row(ui, target == null ? "选择接入目标" : target.name,
-                target == null ? "当前模型或分组不可接入，选择其他目标" : target.reference,
-                () -> host.openDetail("选择接入目标", new ConnectionTargetPicker(host, targets,
+        Button choose = ui.textButton(target == null ? "选择" : "更换", () ->
+                host.openDetail("选择接入目标", new ConnectionTargetPicker(host, targets,
                         () -> displayedScope != null && displayedScope.matches(new Scope(activity)) && AppNavigation.ready(activity),
                         selected -> { setTarget(selected); activity.onBackPressed(); })));
-        targetRow.setBackground(ui.glassControl(false));
-        targetRow.setPadding(ui.dp(14), ui.dp(9), ui.dp(10), ui.dp(9));
-        targetRow.setContentDescription("选择接入目标");
-        configuration.addView(targetRow);
-        if (readFailed) configuration.addView(ui.text("目录更新失败，显示上次读取结果。", 13, ui.muted, false));
+        choose.setContentDescription("选择接入目标");
+        ui.rule(configuration, 0);
+        ui.space(configuration, 12);
+        configuration.addView(new AdaptivePair(ui, selection, choose, 8));
+        ui.space(configuration, 12);
+        ui.rule(configuration, 0);
+        if (readFailed) {
+            ui.space(configuration, 8);
+            configuration.addView(ui.text("目录更新失败，显示上次读取结果。", Ui.Type.SUPPORT));
+        }
         if (target == null) return;
 
         String origin = catalog.snapshot.connectionAddress(remote);
         boolean local = !remote && !catalog.snapshot.onNetwork && ConnectionSheet.loopback(origin);
         String base = ConnectionSheet.base(origin, PROTOCOLS[protocol]);
-        ui.space(configuration, 20);
-        TextView section = ui.text("接入配置", 18, ui.ink, true);
-        section.setAccessibilityHeading(true);
-        configuration.addView(section);
-        ui.space(configuration, 6);
+        ui.space(configuration, 12);
+        Button protocolChoice = ui.textButton(PROTOCOLS[protocol] + "  ⌄", this::chooseProtocol);
+        protocolChoice.setContentDescription("切换接口协议，当前 " + PROTOCOLS[protocol]);
+        configuration.addView(new AdaptivePair(ui, ui.text("接入配置", Ui.Type.SECTION), protocolChoice, 8));
         ui.rule(configuration, 0);
         if (origin.isEmpty()) field("Base URL", "在网关设置中确认接入地址", "确认接入地址", () -> host.advanced("gateway"));
         else field("Base URL", base, "复制 Base URL", () -> copyCurrent(base));
@@ -280,34 +287,47 @@ final class ConnectScreen implements AppScreen {
         if (local) field("API Key · 本机占位", "magpie", "复制 API Key", () -> copyCurrent("magpie"));
         else field("API Key", "在网关中选择模型访问密钥", "网关与访问权限", () -> host.advanced("gateway"));
 
-        ui.space(configuration, 12);
+        ui.space(configuration, 14);
         String copyLabel = local ? "复制接入配置" : origin.isEmpty() ? "复制模型标识" : "复制地址与模型";
         Button copy = ui.button(copyLabel, true, () -> {
             if (local && protocol == 0) copyCurrent(ClientConfig.openAI(origin, reference));
             else if (origin.isEmpty()) copyCurrent(reference);
             else copyCurrent("Base URL: " + base + "\n模型: " + reference + (local ? "\nAPI Key: magpie" : ""));
         });
-        Button test = ui.button(testing ? "正在测试…" : "测试调用", false, () -> {
+        String testLabel = local ? (testing ? "正在测试…" : "测试调用") : "访问密钥";
+        Button test = ui.textButton(testLabel, () -> {
             if (local) probe(origin);
             else host.advanced("gateway");
         });
-        test.setText(local ? (testing ? "正在测试…" : "测试调用") : "访问密钥");
         copy.setEnabled(!readFailed);
         test.setEnabled(!testing && !readFailed && (!local || !Boolean.FALSE.equals(catalog.snapshot.gatewayRunning)));
         configuration.addView(new AdaptivePair(ui, copy, test, 8));
         ui.space(configuration, 8);
-        configuration.addView(ui.text(local ? "测试发送一条短消息，并计入用量。" : "远程和局域网接入使用模型访问密钥。", 13, ui.muted, false));
         if (!result.isEmpty()) {
-            TextView feedback = ui.text(result, 14, successfulTest ? ui.ink : ui.muted, true);
+            TextView feedback = ui.text(result, successfulTest ? Ui.Type.ROW : Ui.Type.BODY);
             feedback.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-            ui.space(configuration, 10);
             configuration.addView(feedback);
+        } else {
+            configuration.addView(ui.text(local ? "测试计入用量。" : "远程和局域网接入使用模型访问密钥。", Ui.Type.SUPPORT));
         }
         if (local && protocol == 0) {
-            TextView json = CatalogViews.action(ui, "查看 JSON", () -> showJson(origin));
-            json.setGravity(Gravity.CENTER_VERTICAL);
-            configuration.addView(json);
+            configuration.addView(ui.textButton("查看 JSON", () -> showJson(origin)),
+                    new LinearLayout.LayoutParams(-2, -2));
         }
+    }
+
+    private void chooseProtocol() {
+        new AlertDialog.Builder(activity, ui.dialogTheme).setTitle("接口协议")
+                .setSingleChoiceItems(PROTOCOLS, protocol, (dialog, index) -> {
+                    dialog.dismiss();
+                    if (index == protocol) return;
+                    protocol = index;
+                    preferences.edit().putInt(preferenceKey("protocol"), index).apply();
+                    result = "";
+                    successfulTest = false;
+                    render();
+                })
+                .setNegativeButton("取消", null).show();
     }
 
     private void field(String label, String value, String action, Runnable click) {

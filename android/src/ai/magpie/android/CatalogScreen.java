@@ -10,7 +10,6 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
-import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -32,6 +31,7 @@ final class CatalogScreen implements AppScreen {
     private static final int GROUPS = 2;
     private static final int PAGE_SIZE = 30;
     private static final String[] TABS = {"模型", "服务商", "分组"};
+    private static final String[] TITLES = {"模型目录", "服务商", "路由分组"};
     private static final String[] FILTERS = {"全部", "可接入", "收藏"};
 
     private static final class Tab {
@@ -56,9 +56,8 @@ final class CatalogScreen implements AppScreen {
     private final LinearLayout results, stale;
     private final TextView[] tabButtons = new TextView[TABS.length];
     private final EditText search;
-    private final TextView filter, status, providerFocus;
-    private final Button add;
-    private final View searchTools, focus, refresh, reconnect, retry;
+    private final TextView heading, add, filter, status, providerFocus;
+    private final View searchTools, focus, refresh, searchRefresh, reconnect, retry;
     private final Runnable observer = () -> render(false);
     private WorkspaceView workspace;
     private CatalogData shown;
@@ -77,6 +76,17 @@ final class CatalogScreen implements AppScreen {
         scroll = CatalogViews.scroll(ui);
         LinearLayout body = CatalogViews.body(ui, scroll, 96);
 
+        heading = ui.text("", Ui.Type.PAGE);
+        LinearLayout headerActions = ui.row();
+        headerActions.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        add = CatalogViews.action(ui, "添加服务商", this::addSelected);
+        add.setTextColor(ui.accent);
+        refresh = ui.iconButton("refresh", "刷新目录", repository::refresh);
+        headerActions.addView(add);
+        headerActions.addView(refresh);
+        body.addView(new AdaptivePair(ui, heading, headerActions, 8));
+        ui.space(body, 6);
+
         LinearLayout tabs = ui.row();
         for (int i = 0; i < TABS.length; i++) {
             int selected = i;
@@ -89,13 +99,12 @@ final class CatalogScreen implements AppScreen {
         search = new EditText(host.activity());
         search.setInputType(InputType.TYPE_CLASS_TEXT);
         search.setSingleLine(true);
-        search.setTextSize(16);
+        ui.typography(search, Ui.Type.BODY);
         search.setTextColor(ui.ink);
         search.setHintTextColor(ui.muted);
-        search.setTypeface(ui.font(false, 400));
         search.setMinHeight(ui.dp(48));
-        search.setPadding(ui.dp(12), ui.dp(8), ui.dp(12), ui.dp(8));
-        search.setBackground(ui.field(ui.soft, 12));
+        search.setPadding(ui.dp(12), ui.dp(6), ui.dp(12), ui.dp(6));
+        search.setBackground(ui.field(ui.card, 10));
         search.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
         search.setOnEditorActionListener((v, action, event) -> {
             if (action != EditorInfo.IME_ACTION_SEARCH) return false;
@@ -114,16 +123,15 @@ final class CatalogScreen implements AppScreen {
             @Override public void afterTextChanged(Editable value) {}
         });
 
-        LinearLayout actions = ui.row();
-        actions.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        LinearLayout searchRow = ui.row();
+        searchRow.setPadding(0, ui.dp(8), 0, 0);
+        ui.grow(searchRow, search);
         filter = CatalogViews.action(ui, "", this::chooseFilter);
-        actions.addView(filter);
-        add = ui.button("添加服务商", false, this::addSelected);
-        actions.addView(add);
-        refresh = ui.iconButton("refresh", "刷新目录", repository::refresh);
-        actions.addView(refresh, new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
-        searchTools = new AdaptivePair(ui, search, actions, 6);
-        searchTools.setPadding(0, ui.dp(12), 0, 0);
+        filter.setPadding(ui.dp(6), ui.dp(6), ui.dp(2), ui.dp(6));
+        searchRow.addView(filter);
+        searchRefresh = ui.iconButton("refresh", "刷新目录", repository::refresh);
+        searchRow.addView(searchRefresh);
+        searchTools = searchRow;
         body.addView(searchTools);
 
         providerFocus = ui.text("", Ui.Type.LABEL);
@@ -303,24 +311,34 @@ final class CatalogScreen implements AppScreen {
             if (shown != null) restoringScroll = false;
             if (!force) restoreScroll(position);
         }
-        refresh.setEnabled(!repository.loading());
-        refresh.setAlpha(repository.loading() ? .5f : 1);
+        boolean loading = repository.loading();
+        refresh.setEnabled(!loading);
+        searchRefresh.setEnabled(!loading);
+        refresh.setAlpha(loading ? .5f : 1);
+        searchRefresh.setAlpha(loading ? .5f : 1);
     }
 
     private void renderControls() {
         boolean models = workspace.selected == MODELS;
+        heading.setText(TITLES[workspace.selected]);
         for (int i = 0; i < tabButtons.length; i++) {
             CatalogViews.selectTab(ui, tabButtons[i], i == workspace.selected);
         }
-        boolean searchable = shown != null && (hasEntries() || !tab().query.trim().isEmpty());
+        boolean populated = shown != null && hasEntries();
+        boolean searchable = shown != null && (populated || !tab().query.trim().isEmpty());
+        boolean addVisible = !models && populated && canAdd();
         searchTools.setVisibility(searchable ? View.VISIBLE : View.GONE);
         filter.setVisibility(models ? View.VISIBLE : View.GONE);
         filter.setText(FILTERS[workspace.filter] + " ⌄");
         filter.setContentDescription("筛选模型，当前" + FILTERS[workspace.filter]);
         add.setText(workspace.selected == GROUPS ? "新建分组" : "添加服务商");
-        add.setVisibility(!models && canAdd() ? View.VISIBLE : View.GONE);
-        refresh.setVisibility(shownReady ? View.VISIBLE : View.GONE);
-        refresh.setContentDescription(shownFailed ? "重试读取目录" : "刷新目录");
+        add.setVisibility(addVisible ? View.VISIBLE : View.GONE);
+        refresh.setVisibility(shownReady && (populated || shownFailed && searchable) && !addVisible
+                ? View.VISIBLE : View.GONE);
+        searchRefresh.setVisibility(shownReady && addVisible ? View.VISIBLE : View.GONE);
+        String refreshLabel = shownFailed ? "重试读取目录" : "刷新目录";
+        refresh.setContentDescription(refreshLabel);
+        searchRefresh.setContentDescription(refreshLabel);
 
         boolean focused = models && !workspace.provider.isEmpty();
         focus.setVisibility(focused && shown != null ? View.VISIBLE : View.GONE);
@@ -351,7 +369,7 @@ final class CatalogScreen implements AppScreen {
         found = 0;
         if (shown == null) {
             if (!shownReady) {
-                empty("连接后查看" + TABS[workspace.selected], "启动本机网关，或连接已有的远程工作区。");
+                empty("工作区未连接", "启动本机网关，或连接已有的远程工作区。");
                 results.addView(ui.button("连接工作区", true, host::openWorkspace));
             } else if (shownFailed) {
                 empty("暂时无法读取目录", "重试读取，或检查工作区连接。");
@@ -436,7 +454,7 @@ final class CatalogScreen implements AppScreen {
     }
 
     private void empty(String title, String note) {
-        ui.space(results, 24);
+        ui.space(results, 16);
         results.addView(ui.text(title, Ui.Type.SECTION));
         if (!note.isEmpty()) {
             ui.space(results, 8);
