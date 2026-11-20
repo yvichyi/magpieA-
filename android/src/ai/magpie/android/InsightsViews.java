@@ -58,9 +58,9 @@ final class InsightsViews {
 
     static LinearLayout metric(Ui ui, String label, String value) {
         LinearLayout group = ui.column();
-        group.addView(ui.text(label, Ui.Type.LABEL));
-        ui.space(group, 4);
         group.addView(ui.text(value, Ui.Type.METRIC));
+        ui.space(group, 4);
+        group.addView(ui.text(label, Ui.Type.LABEL));
         return group;
     }
 

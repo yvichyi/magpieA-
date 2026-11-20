@@ -105,7 +105,7 @@ final class GlassPanel extends FrameLayout {
                 && backdrop.drawLens(canvas, topSurface, getLeft(), getTop(), getWidth(), getHeight(), radius);
         if (live) {
             fill.setColor(0xffffffff);
-            fill.setShader(getResources().getConfiguration().fontScale >= 1.5f ? readableFilm : film);
+            fill.setShader(!topSurface || getResources().getConfiguration().fontScale >= 1.5f ? readableFilm : film);
         } else if (solid || !canvas.isHardwareAccelerated()) {
             fill.setShader(null);
             fill.setColor(dark ? 0xff25282c : 0xfff4f6f8);

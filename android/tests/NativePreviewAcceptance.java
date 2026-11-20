@@ -387,6 +387,7 @@ public final class NativePreviewAcceptance extends Instrumentation {
     private void testInsights(boolean details) throws Exception {
         click("用量");
         awaitText("Token 总量", 40_000);
+        if (mode.equals("small")) verifyUsageMetricOrder();
         capture("12-usage-overview");
         click("分析");
         awaitText("Token 构成", 35_000);
@@ -407,6 +408,23 @@ public final class NativePreviewAcceptance extends Instrumentation {
         accessibilityClick("Save", "保存", 40_000);
         stage("LEDGER_DRILLDOWN_AND_DOCUMENT_EXPORT");
         await(() -> resumed.get() == home, 25_000, "Export returned to another screen");
+    }
+
+    private void verifyUsageMetricOrder() {
+        ui(() -> {
+            View tokens = find(decor(), "Token 总量", false, false);
+            View calls = find(decor(), "调用次数", false, false);
+            require(tokens != null && calls != null, "Usage labels are missing");
+            ViewGroup tokenGroup = (ViewGroup) tokens.getParent();
+            ViewGroup callGroup = (ViewGroup) calls.getParent();
+            View tokenValue = tokenGroup.getChildAt(0);
+            View callValue = callGroup.getChildAt(0);
+            require(tokenValue.getBottom() <= tokens.getTop() && callValue.getBottom() <= calls.getTop(),
+                    "A wrapped metric label moves the primary number");
+            if (tokenGroup.getTop() == callGroup.getTop()) {
+                require(tokenValue.getTop() == callValue.getTop(), "Metric numbers do not share a baseline row");
+            }
+        });
     }
 
     private void testSettings() throws Exception {

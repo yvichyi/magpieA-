@@ -2,7 +2,7 @@
 
 Magpie 的独立安卓移植版。当前为 **2.0.0-preview7**，内置 Magpie 核心 **v0.1.4342**。
 
-**[下载手机 ARM64 APK](https://raw.githubusercontent.com/yvichyi/magpieA-/1525f337feaa93e4e64434f8b6d507778183c9e4/Magpie-Android-2.0.0-preview7-arm64.apk)** · [全部安装包与校验文件](https://github.com/yvichyi/magpieA-/releases/tag/v2.0.0-preview7)
+**[下载手机 ARM64 APK](https://raw.githubusercontent.com/yvichyi/magpieA-/aafa5117faa8777ae7180719655392c55008e1e7/Magpie-Android-2.0.0-preview7-arm64.apk)** · [全部安装包与校验文件](https://github.com/yvichyi/magpieA-/releases/tag/v2.0.0-preview7)
 
 [安装和使用](android/README.zh-CN.md) · [页面排版与验收](android/docs/preview-2.0-layout/README.md) · [预览 1 页面实拍](android/docs/preview-2.0/README.md)
 

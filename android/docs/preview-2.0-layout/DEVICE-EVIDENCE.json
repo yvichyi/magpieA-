@@ -1,0 +1,37 @@
+{
+  "device": "Android 13 AOSP ATD x86_64 emulator",
+  "installedSha256": "2301b823aeef8d51676ecf0e6252b172f21446e523774ac3fc43d844aafdbe76",
+  "regularViewportDp": [
+    394,
+    852
+  ],
+  "compactViewportDp": [
+    320,
+    568
+  ],
+  "compactFontScale": 2.0,
+  "testModesPassed": {
+    "workflow": "Model and request screens populated from the bundled gateway, one loopback model call",
+    "small": "320dp double-size populated screen routes and aligned summary value row",
+    "checkin": "Check-in entry and authenticated manual/automatic request paths",
+    "plugins": "Installation, disable, enable and upgrade through the loopback npm registry",
+    "glass": "Tab motion, reduced motion and live refraction with the stronger dock film"
+  },
+  "screenshots": [
+    "screens/05-call-success.png",
+    "screens/01-provider-setup.png",
+    "screens/06-populated-models.png",
+    "screens/07-model-detail.png",
+    "screens/08-populated-usage.png",
+    "screens/09-populated-analysis.png",
+    "screens/10-populated-requests.png",
+    "screens/11-request-detail.png",
+    "screens/12-settings.png",
+    "screens/13-checkin.png",
+    "screens/14-plugins.png",
+    "screens/15-plugin-detail.png",
+    "screens/20-compact-models.png",
+    "screens/21-compact-usage.png",
+    "screens/22-compact-settings.png"
+  ]
+}
